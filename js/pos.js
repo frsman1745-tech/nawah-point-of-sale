@@ -136,6 +136,7 @@ Nawa.POS = {
           self.state.products = serverProducts.map(function (p) {
             return { id: p.id, name: p.name, nameEn: p.nameEn, price: p.price, barcode: p.barcode, categoryId: p.categoryId, notes: p.notes, active: p.active };
           });
+          await DB.clear(S.PRODUCTS);
           for (var i = 0; i < self.state.products.length; i++) {
             try { await DB.add(S.PRODUCTS, self.state.products[i]); } catch (e) {}
           }
@@ -151,6 +152,7 @@ Nawa.POS = {
           self.state.categories = serverCats.map(function (c) {
             return { id: c.id, name: c.name, sortOrder: c.sortOrder };
           });
+          await DB.clear(S.CATEGORIES);
           for (var i = 0; i < self.state.categories.length; i++) {
             try { await DB.add(S.CATEGORIES, self.state.categories[i]); } catch (e) {}
           }
@@ -166,6 +168,7 @@ Nawa.POS = {
           self.state.tables = serverTables.map(function (t) {
             return { id: t.id, number: t.number, name: t.name, seats: t.seats, floorId: t.floorId, shape: t.shape || 'square', status: t.status };
           });
+          await DB.clear(S.TABLES);
           for (var i = 0; i < self.state.tables.length; i++) {
             try { await DB.add(S.TABLES, self.state.tables[i]); } catch (e) {}
           }
@@ -181,6 +184,7 @@ Nawa.POS = {
           self.state.floors = serverFloors.map(function (f) {
             return { id: f.id, name: f.name, sortOrder: f.sortOrder };
           });
+          await DB.clear(S.FLOORS);
           for (var i = 0; i < self.state.floors.length; i++) {
             try { await DB.add(S.FLOORS, self.state.floors[i]); } catch (e) {}
           }
@@ -219,29 +223,40 @@ Nawa.POS = {
         this.state.attendanceRecord = data;
         this.render();
         this._showToast(Nawa.I18n.t('clock_in_success'), 'success');
-      }
-    } catch (e) {}
-  },
-
-  async _clockOut() {
-    if (!Nawa.Auth || !Nawa.Auth.apiFetch || !this.state.attendanceRecord) return;
-    var isAr = Nawa.I18n.getLang() === 'ar';
-    if (!confirm(isAr ? 'هل تريد تسجيل الانصراف؟' : 'Do you want to clock out?')) return;
-    var self = this;
-    try {
-      var res = await Nawa.Auth.apiFetch('/attendance/' + this.state.attendanceRecord.id + '/clock-out', { method: 'PUT' });
-      if (res.ok) {
-        this._showToast(Nawa.I18n.t('clock_out_success'), 'success');
-        setTimeout(function () {
-          Nawa.Auth.logout();
-          window.location.hash = '#/login';
-        }, 1500);
       } else {
-        this._showToast(Nawa.I18n.t('error_generic'), 'error');
+        var err = await res.json().catch(function () { return {}; });
+        this._showToast(err.error || Nawa.I18n.t('error_generic'), 'error');
       }
     } catch (e) {
       this._showToast(Nawa.I18n.t('error_generic'), 'error');
     }
+  },
+
+  async _clockOut() {
+    if (!Nawa.Auth || !Nawa.Auth.apiFetch) return;
+    var isAr = Nawa.I18n.getLang() === 'ar';
+    if (!confirm(isAr ? 'هل تريد تسجيل الانصراف وتسجيل الخروج؟' : 'Clock out and sign out?')) return;
+    var self = this;
+    try {
+      if (this.state.attendanceRecord && this.state.attendanceRecord.id) {
+        await Nawa.Auth.apiFetch('/attendance/' + this.state.attendanceRecord.id + '/clock-out', { method: 'PUT' }).catch(function () {});
+      }
+      this._showToast(Nawa.I18n.t('clock_out_success'), 'success');
+      setTimeout(function () {
+        Nawa.Auth.logout();
+        window.location.hash = '#/login';
+      }, 1000);
+    } catch (e) {
+      Nawa.Auth.logout();
+      window.location.hash = '#/login';
+    }
+  },
+
+  logout() {
+    var isAr = Nawa.I18n.getLang() === 'ar';
+    if (!confirm(isAr ? 'هل تريد تسجيل الخروج؟' : 'Are you sure you want to logout?')) return;
+    Nawa.Auth.logout();
+    window.location.hash = '#/login';
   },
 
   _showToast(message, type) {
@@ -256,14 +271,27 @@ Nawa.POS = {
   _renderAttendanceBtn() {
     var rec = this.state.attendanceRecord;
     var t = Nawa.I18n.t;
-    if (!rec) {
-      return '<button class="btn btn-success btn-sm" id="pos-clock-in" style="margin-left:8px;padding:4px 12px;font-size:0.8125rem;font-weight:600;border-radius:8px;display:flex;align-items:center;gap:4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' + t('clock_in') + '</button>';
+    var isAr = Nawa.I18n.getLang() === 'ar';
+    var time = '';
+    if (rec && rec.clockIn) {
+      time = new Date(rec.clockIn).toLocaleTimeString(isAr ? 'ar-SA' : 'en-US', { hour: '2-digit', minute: '2-digit' });
     }
-    if (!rec.clockOut) {
-      var time = rec.clockIn ? new Date(rec.clockIn).toLocaleTimeString(Nawa.I18n.getLang() === 'ar' ? 'ar-SA' : 'en-US', { hour: '2-digit', minute: '2-digit' }) : '';
-      return '<span style="margin-left:8px;display:flex;align-items:center;gap:6px;font-size:0.8125rem;color:#22c55e;font-weight:600;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' + t('clocked_in_at') + ' ' + time + ' <button class="btn btn-danger btn-sm" id="pos-clock-out" style="padding:2px 10px;font-size:0.75rem;border-radius:6px;">' + t('clock_out') + '</button></span>';
+    if (rec && !rec.clockOut) {
+      return '<div style="display:flex;align-items:center;gap:6px;margin-left:8px;">' +
+        '<span style="font-size:0.75rem;color:#22c55e;font-weight:600;display:flex;align-items:center;gap:4px;">' +
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' +
+          t('clocked_in_at') + ' ' + time +
+        '</span>' +
+        '<button onclick="Nawa.POS._clockOut()" style="background:#dc2626;color:#fff;border:none;padding:5px 14px;border-radius:8px;font-size:0.8125rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px;">' +
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>' +
+          t('clock_out') +
+        '</button>' +
+      '</div>';
     }
-    return '<span style="margin-left:8px;display:flex;align-items:center;gap:4px;font-size:0.8125rem;color:var(--text-secondary);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' + t('clock_out') + '</span>';
+    return '<button onclick="Nawa.POS._clockIn()" style="background:#16a34a;color:#fff;border:none;padding:5px 14px;border-radius:8px;font-size:0.8125rem;font-weight:600;cursor:pointer;margin-left:8px;display:flex;align-items:center;gap:4px;">' +
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' +
+      t('clock_in') +
+    '</button>';
   },
 
   // ===========================
@@ -346,6 +374,10 @@ Nawa.POS = {
             ${emp ? this._escapeHtml(emp.name || emp.username || '') : ''}
           </span>
           ${this._renderAttendanceBtn()}
+          <button onclick="Nawa.POS.logout()" style="background:#dc2626;color:#fff;border:none;padding:5px 14px;border-radius:8px;font-size:0.8125rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px;" title="${Nawa.I18n.t('logout')}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            ${Nawa.I18n.t('logout')}
+          </button>
           <button class="btn btn-ghost btn-icon" id="pos-lang-toggle" title="${Nawa.I18n.t('language')}">
             ${lang === 'ar' ? 'EN' : 'عربي'}
           </button>
@@ -1273,8 +1305,13 @@ Nawa.POS = {
 
   _startSyncTimer() {
     if (this._syncTimer) clearInterval(this._syncTimer);
+    if (this._pullTimer) clearInterval(this._pullTimer);
     const interval = Nawa.CONFIG.SYNC_INTERVAL || 300000;
     this._syncTimer = setInterval(() => this.syncToServer(), interval);
+    this._pullTimer = setInterval(async () => {
+      await this._syncFromServer();
+      this.render();
+    }, interval);
   },
 
   // ===========================
@@ -1475,14 +1512,6 @@ Nawa.POS = {
         }
         if (e.target.closest('#pos-pay-btn')) {
           this.processPayment();
-          return;
-        }
-        if (e.target.closest('#pos-clock-in')) {
-          this._clockIn();
-          return;
-        }
-        if (e.target.closest('#pos-clock-out')) {
-          this._clockOut();
           return;
         }
         if (e.target.closest('#pos-order-history-btn')) {
