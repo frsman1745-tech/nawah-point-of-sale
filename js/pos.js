@@ -12,7 +12,9 @@ Nawa.POS = {
     tables: [],
     products: [],
     categories: [],
-    attendanceRecord: null
+    attendanceRecord: null,
+    orderNote: '',
+    orders: []
   },
 
   TAX_RATE: 0.15,
@@ -43,7 +45,8 @@ Nawa.POS = {
       this._loadFloors(),
       this._loadTables(),
       this._loadProducts(),
-      this._loadCategories()
+      this._loadCategories(),
+      this._loadOrders()
     ]);
 
     await this._syncFromServer();
@@ -88,6 +91,14 @@ Nawa.POS = {
       this.state.categories = await Nawa.DB.getAll(Nawa.CONFIG.STORES.CATEGORIES) || [];
     } catch (e) {
       this.state.categories = [];
+    }
+  },
+
+  async _loadOrders() {
+    try {
+      this.state.orders = await Nawa.DB.getAll(Nawa.CONFIG.STORES.ORDERS) || [];
+    } catch (e) {
+      this.state.orders = [];
     }
   },
 
@@ -234,6 +245,7 @@ Nawa.POS = {
         <div class="pos-body">
           <div class="pos-products-panel">
             ${this.renderCategories()}
+            ${this.renderQuickFire()}
             <div class="pos-search-bar">
               <input type="text" class="form-input pos-search-input" placeholder="${Nawa.I18n.t('search')}" value="${this._escapeHtml(this.state.searchQuery)}" />
             </div>
@@ -288,6 +300,36 @@ Nawa.POS = {
           </div>
         </div>
       </header>`;
+  },
+
+  renderQuickFire() {
+    var html = '';
+    try {
+      var orders = this.state.orders;
+      var freq = {};
+      for (var i = 0; i < orders.length; i++) {
+        var items = orders[i].items || [];
+        for (var j = 0; j < items.length; j++) {
+          var pid = items[j].productId;
+          if (!pid) continue;
+          freq[pid] = (freq[pid] || 0) + items[j].quantity;
+        }
+      }
+      var sorted = Object.keys(freq).sort(function (a, b) { return freq[b] - freq[a]; }).slice(0, 6);
+      if (sorted.length === 0) return '';
+      var products = this.state.products;
+      var buttons = [];
+      for (var k = 0; k < sorted.length; k++) {
+        var product = products.find(function (p) { return String(p.id) === String(sorted[k]); });
+        if (!product) continue;
+        var name = Nawa.I18n.getLang() === 'ar' ? (product.name || product.nameEn) : (product.nameEn || product.name);
+        buttons.push('<button class="pos-quickfire-btn" data-product-id="' + product.id + '" style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg-secondary);cursor:pointer;min-width:90px;gap:4px;"><span style="font-size:0.8125rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100px;">' + this._escapeHtml(name) + '</span><span style="font-size:0.75rem;color:var(--text-secondary);">' + this.formatPrice(product.price) + '</span></button>');
+      }
+      if (buttons.length > 0) {
+        html = '<div style="padding:4px 0;"><div style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);padding:0 12px 4px;">' + Nawa.I18n.t('quick_fire') + '</div><div style="display:flex;gap:8px;overflow-x:auto;padding:0 12px 8px;">' + buttons.join('') + '</div></div>';
+      }
+    } catch (e) {}
+    return html;
   },
 
   renderCategories() {
@@ -382,6 +424,9 @@ Nawa.POS = {
         </div>
         <div class="pos-cart-items" id="pos-cart-items">
           ${cartItemsHtml}
+        </div>
+        <div class="pos-order-note" style="padding:0 12px;">
+          <textarea class="form-input pos-note-input" placeholder="${Nawa.I18n.t('order_note_placeholder')}" rows="2" style="resize:none;font-size:0.8125rem;">${this._escapeHtml(this.state.orderNote)}</textarea>
         </div>
         <div class="pos-cart-summary">
           <div class="pos-cart-row">
@@ -792,6 +837,7 @@ Nawa.POS = {
           subtotal,
           tax,
           total,
+          note: this.state.orderNote,
           amountReceived: received,
           change: received - total,
           paymentMethod: 'cash',
@@ -815,6 +861,7 @@ Nawa.POS = {
           modal.classList.add('hidden');
           this.generateReceipt(order);
           this.state.cart = [];
+          this.state.orderNote = '';
           this.state.currentTable = null;
           this.render();
           this.showNotification(Nawa.I18n.t('success_payment'), 'success');
@@ -1050,6 +1097,14 @@ Nawa.POS = {
       const target = e.target.closest('[data-action], [data-product-id], [data-category-id], [data-floor-id], [data-cart-index]');
       if (!target) return;
 
+      // Quick-fire button
+      if (target.classList.contains('pos-quickfire-btn')) {
+        var pid = target.dataset.productId;
+        var product = this.state.products.find(p => String(p.id) === String(pid));
+        if (product) this.addToCart(product);
+        return;
+      }
+
       // Product click
       const productId = target.closest('[data-product-id]');
       if (productId) {
@@ -1163,6 +1218,9 @@ Nawa.POS = {
             grid.innerHTML = this.renderProducts();
           }
         }, 250);
+      }
+      if (e.target.classList.contains('pos-note-input')) {
+        this.state.orderNote = e.target.value;
       }
     });
 

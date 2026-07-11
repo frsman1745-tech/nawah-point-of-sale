@@ -436,7 +436,10 @@
     attendance_today: { ar: 'حضور اليوم', en: 'Today\'s Attendance' },
     clock_in_success: { ar: 'تم تسجيل الحضور بنجاح', en: 'Clocked in successfully' },
     clock_out_success: { ar: 'تم تسجيل الانصراف بنجاح', en: 'Clocked out successfully' },
-    already_clocked_in: { ar: 'تم تسجيل الحضور مسبقاً', en: 'Already clocked in' }
+    already_clocked_in: { ar: 'تم تسجيل الحضور مسبقاً', en: 'Already clocked in' },
+    quick_fire: { ar: 'الأكثر طلباً', en: 'Quick Fire' },
+    order_note_placeholder: { ar: 'أضف ملاحظة للطلب...', en: 'Add order note...' },
+    order_note: { ar: 'ملاحظة الطلب', en: 'Order Note' }
   };
 
   function setDirection(lang) {
