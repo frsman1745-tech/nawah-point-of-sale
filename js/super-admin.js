@@ -415,13 +415,33 @@ Nawa.SuperAdmin = {
     </div>`;
   },
 
-  renderRestaurantDetail(restaurant) {
+  async renderRestaurantDetail(restaurant) {
     if (!restaurant) return '';
     const modalRoot = document.getElementById('sa-modal-root');
     if (!modalRoot) return;
 
-    const orders = restaurant.ordersThisMonth || Math.floor(Math.random() * 500) + 50;
-    const storage = restaurant.storageUsed || (Math.random() * 500 + 50).toFixed(1);
+    let ordersCount = 0;
+    let storageMB = 0;
+    try {
+      const res = await Nawa.Auth.apiFetch('/orders?restaurantId=' + restaurant.id);
+      if (res.ok) {
+        const orders = await res.json();
+        const now = new Date();
+        ordersCount = orders.filter(o => {
+          const d = new Date(o.createdAt);
+          return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        }).length;
+      }
+    } catch (e) {}
+
+    try {
+      const [prods, cats, tabs] = await Promise.all([
+        Nawa.Auth.apiFetch('/products').then(r => r.ok ? r.json() : []),
+        Nawa.Auth.apiFetch('/categories').then(r => r.ok ? r.json() : []),
+        Nawa.Auth.apiFetch('/tables').then(r => r.ok ? r.json() : [])
+      ]);
+      storageMB = ((prods.length + cats.length + tabs.length) * 0.5).toFixed(1);
+    } catch (e) {}
 
     modalRoot.innerHTML = `
     <div class="sa-detail-overlay" id="saDetailOverlay">
@@ -487,11 +507,11 @@ Nawa.SuperAdmin = {
             <div class="sa-detail-grid">
               <div class="sa-detail-field">
                 <div class="sa-detail-field-label">الطلبات هذا الشهر</div>
-                <div class="sa-detail-field-value">${orders.toLocaleString()}</div>
+                <div class="sa-detail-field-value">${ordersCount.toLocaleString()}</div>
               </div>
               <div class="sa-detail-field">
                 <div class="sa-detail-field-label">المساحة المستخدمة</div>
-                <div class="sa-detail-field-value">${storage} MB</div>
+                <div class="sa-detail-field-value">${storageMB} MB</div>
               </div>
             </div>
           </div>
