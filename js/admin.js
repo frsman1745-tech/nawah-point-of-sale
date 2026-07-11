@@ -558,7 +558,7 @@
       this.state.auditEntries.forEach(function (e) {
         if (e.userId && !seenUsers[e.userId]) {
           seenUsers[e.userId] = true;
-          userOptions += '<option value="' + e.userId + '">' + (e.userName || e.userId) + '</option>';
+          userOptions += '<option value="' + Admin._escapeHtml(e.userId) + '">' + Admin._escapeHtml(e.userName || e.userId) + '</option>';
         }
       });
       html += '<select class="form-select" id="audit-user-filter">' + userOptions + '</select>';
@@ -784,7 +784,7 @@
         var row = '<div class="admin-settings-row">';
         row += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t(label) + '</span><span class="admin-settings-label-desc">' + t(desc) + '</span></div>';
         row += '<div class="form-group" style="max-width:120px;display:flex;align-items:center;gap:4px;">';
-        row += '<input type="number" class="form-input ds-number" data-key="' + settingKey + '" value="' + val + '" min="' + (min || 0) + '" max="' + (max || 9999) + '">';
+        row += '<input type="number" class="form-input ds-number" data-key="' + settingKey + '" value="' + Admin._escapeHtml(String(val)) + '" min="' + (min || 0) + '" max="' + (max || 9999) + '">';
         if (unit) row += '<span style="color:var(--text-secondary,#6B7280);font-size:0.8125rem;">' + unit + '</span>';
         row += '</div></div>';
         return row;
@@ -803,7 +803,7 @@
         var val = st[settingKey] || '';
         var row = '<div class="admin-settings-row">';
         row += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t(label) + '</span><span class="admin-settings-label-desc">' + t(desc) + '</span></div>';
-        row += '<div class="form-group" style="max-width:120px"><input type="time" class="form-input ds-time" data-key="' + settingKey + '" value="' + val + '"></div>';
+        row += '<div class="form-group" style="max-width:120px"><input type="time" class="form-input ds-time" data-key="' + settingKey + '" value="' + Admin._escapeHtml(val) + '"></div>';
         row += '</div>';
         return row;
       }
@@ -878,12 +878,12 @@
 
       html += '<div class="admin-settings-row">';
       html += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t('tax_rate') + '</span><span class="admin-settings-label-desc">' + t('tax_rate_desc') + '</span></div>';
-      html += '<div class="form-group" style="max-width:120px"><input type="number" class="form-input" id="setting-tax" value="' + (st.taxRate || '15') + '" min="0" max="100"></div>';
+      html += '<div class="form-group" style="max-width:120px"><input type="number" class="form-input" id="setting-tax" value="' + Admin._escapeHtml(String(st.taxRate || '15')) + '" min="0" max="100"></div>';
       html += '</div>';
 
       html += '<div class="admin-settings-row">';
       html += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t('receipt_header') + '</span><span class="admin-settings-label-desc">' + t('receipt_header_desc') + '</span></div>';
-      html += '<div class="form-group" style="flex:2"><input type="text" class="form-input" id="setting-receipt-header" value="' + (st.receiptHeader || CFG.COMPANY_NAME) + '"></div>';
+      html += '<div class="form-group" style="flex:2"><input type="text" class="form-input" id="setting-receipt-header" value="' + Admin._escapeHtml(st.receiptHeader || CFG.COMPANY_NAME) + '"></div>';
       html += '</div>';
 
       html += '<div class="admin-settings-row">';
