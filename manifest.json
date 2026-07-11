@@ -1,0 +1,16 @@
+{
+  "name": "نظام نقطة البيع - شركة نواة",
+  "short_name": "نواة POS",
+  "description": "نظام نقطة البيع للمطاعم - شركة نواة",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#F8FAFC",
+  "theme_color": "#0D9488",
+  "orientation": "any",
+  "dir": "rtl",
+  "lang": "ar",
+  "icons": [
+    { "src": "assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
