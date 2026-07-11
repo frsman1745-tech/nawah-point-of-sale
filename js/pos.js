@@ -17,6 +17,7 @@ Nawa.POS = {
   TAX_RATE: 0.15,
   _syncTimer: null,
   _searchDebounce: null,
+  _listenersAttached: false,
 
   // ===========================
   // INITIALIZATION
@@ -235,7 +236,7 @@ Nawa.POS = {
     const cartItemsHtml = cart.length === 0
       ? `<div class="pos-cart-empty">
            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
-           <span>${Nawa.I18n.t('no_data')}</span>
+           <span>${Nawa.I18n.t('cart_empty')}</span>
          </div>`
       : items;
 
@@ -403,7 +404,7 @@ Nawa.POS = {
 
     this.state.cart = [];
     this.render();
-    this.showNotification(Nawa.I18n.t('success_save'), 'info');
+    this.showNotification(Nawa.I18n.t('cart_cleared'), 'info');
   },
 
   getCartTotal() {
@@ -490,7 +491,11 @@ Nawa.POS = {
 
     if (!confirm(Nawa.I18n.t('confirm_clear_order'))) return;
 
-    await Nawa.Audit.log('order_cancelled', Nawa.CONFIG.STORES.ORDERS, null, { tableId: this.state.currentTable, itemCount: this.state.cart.length, total: this.getCartTotal().total });
+    try {
+      await Nawa.Audit.log('order_cancelled', Nawa.CONFIG.STORES.ORDERS, null, { tableId: this.state.currentTable, itemCount: this.state.cart.length, total: this.getCartTotal().total });
+    } catch (e) {
+      // audit log failed, continue with cancellation
+    }
 
     this.state.cart = [];
     this.render();
@@ -563,8 +568,8 @@ Nawa.POS = {
       products = products.filter(p => {
         const nameAr = (p.name || '').toLowerCase();
         const nameEn = (p.nameEn || '').toLowerCase();
-        const sku = (p.sku || '').toLowerCase();
-        return nameAr.includes(q) || nameEn.includes(q) || sku.includes(q);
+        const barcode = (p.barcode || '').toLowerCase();
+        return nameAr.includes(q) || nameEn.includes(q) || barcode.includes(q);
       });
     }
 
@@ -862,7 +867,7 @@ Nawa.POS = {
 
       // Simulated server sync
       for (const item of pendingItems) {
-        await Nawa.DB.delete(Nawa.CONFIG.STORES.PENDING_SYNC, item.id);
+        await Nawa.DB.hardDelete(Nawa.CONFIG.STORES.PENDING_SYNC, item.id);
       }
 
       this._updateSyncIndicator('synced');
@@ -977,33 +982,34 @@ Nawa.POS = {
       }
     });
 
-    // Header buttons (outside delegation area)
-    document.addEventListener('click', (e) => {
-      if (e.target.closest('#pos-select-table')) {
-        this.showTableModal();
-        return;
-      }
-      if (e.target.closest('#pos-lang-toggle')) {
-        const lang = Nawa.I18n.getLang();
-        if (typeof Nawa.I18n.setLang === 'function') {
-          Nawa.I18n.setLang(lang === 'ar' ? 'en' : 'ar');
+    // Header buttons (outside delegation area) - attach once only
+    if (!this._listenersAttached) {
+      document.addEventListener('click', (e) => {
+        if (e.target.closest('#pos-select-table')) {
+          this.showTableModal();
+          return;
         }
-        this.render();
-        return;
-      }
-      if (e.target.closest('#pos-hold-btn')) {
-        this.holdOrder();
-        return;
-      }
-      if (e.target.closest('#pos-cancel-btn')) {
-        this.cancelOrder();
-        return;
-      }
-      if (e.target.closest('#pos-pay-btn')) {
-        this.processPayment();
-        return;
-      }
-    });
+        if (e.target.closest('#pos-lang-toggle')) {
+          const lang = Nawa.I18n.getLang();
+          if (typeof Nawa.I18n.setLang === 'function') {
+            Nawa.I18n.setLang(lang === 'ar' ? 'en' : 'ar');
+          }
+          this.render();
+          return;
+        }
+        if (e.target.closest('#pos-hold-btn')) {
+          this.holdOrder();
+          return;
+        }
+        if (e.target.closest('#pos-cancel-btn')) {
+          this.cancelOrder();
+          return;
+        }
+        if (e.target.closest('#pos-pay-btn')) {
+          this.processPayment();
+          return;
+        }
+      });
 
     // Search input
     app.addEventListener('input', (e) => {
@@ -1029,6 +1035,8 @@ Nawa.POS = {
         if (rm) rm.classList.add('hidden');
       }
     });
+    this._listenersAttached = true;
+    }
   },
 
   // ===========================

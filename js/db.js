@@ -23,7 +23,8 @@
           { name: S.SETTINGS, key: 'id', indexes: ['key'] },
           { name: S.CUSTOMERS, key: 'id', indexes: ['phone', 'name'] },
           { name: S.CATEGORIES, key: 'id', indexes: ['order', 'name'] },
-          { name: S.PENDING_SYNC, key: 'id', indexes: ['store', 'action'] }
+          { name: S.PENDING_SYNC, key: 'id', indexes: ['store', 'action'] },
+          { name: 'restaurants', key: 'id', indexes: ['name', 'status', 'owner'] }
         ];
         stores.forEach(function (s) {
           var store = d.createObjectStore(s.name, { keyPath: s.key });
@@ -79,6 +80,10 @@
 
     delete: function (store, id) {
       return this.update(store, id, { deletedAt: new Date().toISOString() });
+    },
+
+    hardDelete: function (store, id) {
+      return tx(store, 'readwrite').then(function (s) { return promisify(s.delete(id)); });
     },
 
     query: function (store, indexName, value) {

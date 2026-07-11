@@ -270,14 +270,14 @@ const App = {
 
   _fallbackLogin(username, password) {
     const users = {
-      admin: { username: 'admin', password: 'admin123', role: 'admin', name: 'مدير المطعم' },
-      cashier: { username: 'cashier', password: 'cashier123', role: 'cashier', name: 'كاشير' },
-      superadmin: { username: 'superadmin', password: 'super123', role: 'super_admin', name: 'مدير النظام العام' },
+      admin: { id: 'admin', username: 'admin', password: 'admin123', role: 'admin', name: 'مدير المطعم' },
+      cashier: { id: 'cashier', username: 'cashier', password: 'cashier123', role: 'cashier', name: 'كاشير' },
+      superadmin: { id: 'superadmin', username: 'superadmin', password: 'super123', role: 'super_admin', name: 'مدير النظام العام' },
     };
 
     const user = users[username.toLowerCase()];
     if (user && user.password === password) {
-      const session = { username: user.username, role: user.role, name: user.name, loginTime: new Date().toISOString() };
+      const session = { id: user.id, username: user.username, role: user.role, name: user.name, loginTime: new Date().toISOString() };
       try { localStorage.setItem('nawa_session', JSON.stringify(session)); } catch (e) {}
       return user;
     }
@@ -328,13 +328,16 @@ const App = {
 
   _checkAuth(minRole) {
     let session = null;
-    try {
-      const raw = localStorage.getItem('nawa_session');
-      if (raw) session = JSON.parse(raw);
-    } catch (e) {}
 
-    if (Nawa.Auth && Nawa.Auth.getSession) {
-      session = Nawa.Auth.getSession();
+    if (Nawa.Auth && Nawa.Auth.getCurrentUser) {
+      session = Nawa.Auth.getCurrentUser();
+    }
+
+    if (!session) {
+      try {
+        const raw = localStorage.getItem('nawa_session');
+        if (raw) session = JSON.parse(raw);
+      } catch (e) {}
     }
 
     if (!session) {
@@ -355,8 +358,8 @@ const App = {
   },
 
   logout() {
-    try { localStorage.removeItem('nawa_session'); } catch (e) {}
     if (Nawa.Auth && Nawa.Auth.logout) Nawa.Auth.logout();
+    try { localStorage.removeItem('nawa_session'); } catch (e) {}
     window.location.hash = '#/login';
   },
 

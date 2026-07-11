@@ -16,7 +16,8 @@ Nawa.SuperAdmin = {
 
   async init() {
     if (Nawa.Auth && Nawa.Auth.requireAuth) {
-      Nawa.Auth.requireAuth('super_admin');
+      var user = Nawa.Auth.requireAuth('super_admin');
+      if (!user) return;
     }
     await this.loadData();
     this.render();
@@ -944,8 +945,7 @@ Nawa.SuperAdmin = {
       }
 
       if (Nawa.Audit && Nawa.Audit.log) {
-        Nawa.Audit.log('restaurant_added', {
-          restaurantId: restaurant.id,
+        Nawa.Audit.log('restaurant_added', 'restaurants', restaurant.id, {
           name: restaurant.name,
           plan: restaurant.plan
         });
@@ -977,14 +977,13 @@ Nawa.SuperAdmin = {
     restaurant.status = newStatus;
 
     try {
-      await Nawa.DB.put('restaurants', restaurant);
+      await Nawa.DB.update('restaurants', id, { status: newStatus });
     } catch (e) {
       console.warn('DB update failed:', e);
     }
 
     if (Nawa.Audit && Nawa.Audit.log) {
-      Nawa.Audit.log(`restaurant_${action}`, {
-        restaurantId: id,
+      Nawa.Audit.log(`restaurant_${action}`, 'restaurants', id, {
         name: restaurant.name,
         newStatus
       });

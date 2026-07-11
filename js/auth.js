@@ -67,11 +67,11 @@
     requireAuth: function (role) {
       var user = this.getCurrentUser();
       if (!user) {
-        window.location.href = 'login.html';
+        window.location.hash = '#/login';
         return null;
       }
       if (role && user.role !== role) {
-        window.location.href = 'login.html';
+        window.location.hash = '#/login';
         return null;
       }
       return user;

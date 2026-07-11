@@ -21,7 +21,8 @@
 
     async init() {
       if (window.Nawa.Auth && window.Nawa.Auth.requireAuth) {
-        window.Nawa.Auth.requireAuth('admin');
+        var user = window.Nawa.Auth.requireAuth('admin');
+        if (!user) return;
       }
       await this.loadData();
       this.render();
@@ -874,12 +875,7 @@
         emp.isActive = newStatus;
 
         if (window.Nawa.Audit && window.Nawa.Audit.log) {
-          await window.Nawa.Audit.log({
-            action: 'edit',
-            store: 'employees',
-            recordId: employeeId,
-            details: { field: 'isActive', oldValue: !newStatus, newValue: newStatus }
-          });
+          await window.Nawa.Audit.log('edit', 'employees', employeeId, { field: 'isActive', oldValue: !newStatus, newValue: newStatus });
         }
 
         this.showNotification(newStatus ? 'تم تفعيل ' + emp.name : 'تم تعطيل ' + emp.name, 'success');
@@ -890,12 +886,19 @@
     },
 
     async saveSettings() {
+      var taxEl = document.getElementById('setting-tax');
+      var receiptEl = document.getElementById('setting-receipt-header');
+      var syncEl = document.getElementById('setting-sync-interval');
+      var soundEl = document.getElementById('setting-sound');
+      var printEl = document.getElementById('setting-auto-print');
+      if (!taxEl || !receiptEl || !syncEl || !soundEl || !printEl) return;
+
       var settingsToSave = [
-        { key: 'taxRate', value: document.getElementById('setting-tax').value || '15' },
-        { key: 'receiptHeader', value: document.getElementById('setting-receipt-header').value || CFG.COMPANY_NAME },
-        { key: 'syncInterval', value: document.getElementById('setting-sync-interval').value || '300' },
-        { key: 'soundEnabled', value: document.getElementById('setting-sound').checked },
-        { key: 'autoPrint', value: document.getElementById('setting-auto-print').checked }
+        { key: 'taxRate', value: taxEl.value || '15' },
+        { key: 'receiptHeader', value: receiptEl.value || CFG.COMPANY_NAME },
+        { key: 'syncInterval', value: syncEl.value || '300' },
+        { key: 'soundEnabled', value: soundEl.checked },
+        { key: 'autoPrint', value: printEl.checked }
       ];
 
       var self = this;
@@ -966,7 +969,7 @@
       var backBtn = document.getElementById('admin-back-pos');
       if (backBtn) {
         backBtn.addEventListener('click', function () {
-          window.location.href = 'index.html';
+          window.location.hash = '#/pos';
         });
       }
 

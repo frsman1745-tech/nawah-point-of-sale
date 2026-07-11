@@ -14,13 +14,11 @@ const ASSETS = [
   './js/db.js',
   './js/auth.js',
   './js/audit.js',
-  './js/sync.js',
+  './js/i18n.js',
   './js/pos.js',
   './js/admin.js',
   './js/super-admin.js',
-  './js/i18n.js',
-  './js/app.js',
-  './assets/logo.svg'
+  './js/app.js'
 ];
 
 self.addEventListener('install', e => {
