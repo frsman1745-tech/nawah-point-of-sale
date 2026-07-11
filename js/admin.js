@@ -52,7 +52,50 @@
 
         this.calculateStats();
       } catch (e) {
-        console.error('Admin loadData error:', e);
+        this.showNotification(Nawa.I18n.t('error_generic'), 'error');
+      }
+    },
+
+    async saveDashboardSettings() {
+      var self = this;
+      var settingsToSave = [];
+
+      document.querySelectorAll('.ds-toggle').forEach(function (el) {
+        settingsToSave.push({ key: el.getAttribute('data-key'), value: el.checked });
+      });
+      document.querySelectorAll('.ds-number').forEach(function (el) {
+        settingsToSave.push({ key: el.getAttribute('data-key'), value: parseFloat(el.value) || 0 });
+      });
+      document.querySelectorAll('.ds-text').forEach(function (el) {
+        settingsToSave.push({ key: el.getAttribute('data-key'), value: el.value || '' });
+      });
+      document.querySelectorAll('.ds-time').forEach(function (el) {
+        settingsToSave.push({ key: el.getAttribute('data-key'), value: el.value || '' });
+      });
+      document.querySelectorAll('.ds-select').forEach(function (el) {
+        settingsToSave.push({ key: el.getAttribute('data-key'), value: el.value || '' });
+      });
+
+      var ops = settingsToSave.map(function (s) {
+        return DB.getAll(S.SETTINGS).then(function (existing) {
+          var found = null;
+          for (var i = 0; i < existing.length; i++) {
+            if (existing[i].key === s.key) { found = existing[i]; break; }
+          }
+          if (found) {
+            return DB.update(S.SETTINGS, found.id, { value: s.value });
+          } else {
+            return DB.add(S.SETTINGS, { key: s.key, value: s.value });
+          }
+        });
+      });
+
+      try {
+        await Promise.all(ops);
+        settingsToSave.forEach(function (s) { self.state.settings[s.key] = s.value; });
+        this.showNotification(Nawa.I18n.t('ds_saved'), 'success');
+      } catch (e) {
+        this.showNotification(Nawa.I18n.t('error_generic'), 'error');
       }
     },
 
@@ -168,6 +211,7 @@
         case 'dashboard': html += this.renderDashboard(); break;
         case 'audit': html += this.renderAuditLog(); break;
         case 'employees': html += this.renderEmployees(); break;
+        case 'dashboard-settings': html += this.renderDashboardSettings(); break;
         case 'settings': html += this.renderSettings(); break;
       }
 
@@ -183,6 +227,7 @@
         { id: 'dashboard', label: isAr ? 'لوحة التحكم' : 'Dashboard', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>' },
         { id: 'audit', label: isAr ? 'سجل التعديلات' : 'Audit Log', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>' },
         { id: 'employees', label: isAr ? 'الموظفين' : 'Employees', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>' },
+        { id: 'dashboard-settings', label: isAr ? 'تعديلات اللوحة' : 'Dashboard Mods', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/><path d="M14 9l3 0"/><path d="M14 15l3 0"/></svg>' },
         { id: 'settings', label: isAr ? 'الإعدادات' : 'Settings', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>' }
       ];
 
@@ -204,13 +249,6 @@
       html += '<div class="admin-sidebar-section-title">' + (isAr ? 'القائمة الرئيسية' : 'Main Menu') + '</div>';
       html += navLinks;
       html += '</div>';
-
-      html += '<div class="admin-sidebar-footer">';
-      html += '<button class="admin-sidebar-back" id="admin-back-pos">';
-      html += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>';
-      html += '<span>' + (isAr ? 'الرجوع للنقطة' : 'Back to POS') + '</span>';
-      html += '</button>';
-      html += '</div>';
       html += '</nav>';
       return html;
     },
@@ -228,6 +266,7 @@
         dashboard: (window.Nawa.I18n.getLang() === 'ar') ? 'لوحة التحكم' : 'Dashboard',
         audit: (window.Nawa.I18n.getLang() === 'ar') ? 'سجل التعديلات' : 'Audit Log',
         employees: (window.Nawa.I18n.getLang() === 'ar') ? 'الموظفين' : 'Employees',
+        'dashboard-settings': (window.Nawa.I18n.getLang() === 'ar') ? 'تعديلات اللوحة' : 'Dashboard Settings',
         settings: (window.Nawa.I18n.getLang() === 'ar') ? 'الإعدادات' : 'Settings'
       };
       var now = new Date();
@@ -720,6 +759,111 @@
       html += '</div></div></div>';
 
       html += '</div>';
+      return html;
+    },
+
+    renderDashboardSettings() {
+      var st = this.state.settings;
+      var t = Nawa.I18n.t;
+      var isAr = (window.Nawa.I18n && window.Nawa.I18n.getLang) ? window.Nawa.I18n.getLang() === 'ar' : true;
+      var html = '<div class="admin-settings">';
+      html += '<div style="max-width:800px;margin:0 auto;">';
+      html += '<p style="color:var(--text-secondary,#6B7280);margin-bottom:24px;font-size:0.9375rem;">' + t('ds_desc') + '</p>';
+
+      function toggleRow(key, label, desc, settingKey) {
+        var checked = st[settingKey] !== false ? ' checked' : '';
+        var row = '<div class="admin-settings-row">';
+        row += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t(label) + '</span><span class="admin-settings-label-desc">' + t(desc) + '</span></div>';
+        row += '<label class="admin-toggle"><input type="checkbox" class="ds-toggle" data-key="' + settingKey + '"' + checked + '><span class="admin-toggle-slider"></span></label>';
+        row += '</div>';
+        return row;
+      }
+
+      function numberRow(key, label, desc, settingKey, min, max, unit) {
+        var val = st[settingKey] !== undefined ? st[settingKey] : 0;
+        var row = '<div class="admin-settings-row">';
+        row += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t(label) + '</span><span class="admin-settings-label-desc">' + t(desc) + '</span></div>';
+        row += '<div class="form-group" style="max-width:120px;display:flex;align-items:center;gap:4px;">';
+        row += '<input type="number" class="form-input ds-number" data-key="' + settingKey + '" value="' + val + '" min="' + (min || 0) + '" max="' + (max || 9999) + '">';
+        if (unit) row += '<span style="color:var(--text-secondary,#6B7280);font-size:0.8125rem;">' + unit + '</span>';
+        row += '</div></div>';
+        return row;
+      }
+
+      function textRow(key, label, desc, settingKey, placeholder) {
+        var val = st[settingKey] || '';
+        var row = '<div class="admin-settings-row">';
+        row += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t(label) + '</span><span class="admin-settings-label-desc">' + t(desc) + '</span></div>';
+        row += '<div class="form-group" style="flex:2"><input type="text" class="form-input ds-text" data-key="' + settingKey + '" value="' + Admin._escapeHtml(val) + '" placeholder="' + (placeholder || '') + '"></div>';
+        row += '</div>';
+        return row;
+      }
+
+      function timeRow(key, label, desc, settingKey) {
+        var val = st[settingKey] || '';
+        var row = '<div class="admin-settings-row">';
+        row += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t(label) + '</span><span class="admin-settings-label-desc">' + t(desc) + '</span></div>';
+        row += '<div class="form-group" style="max-width:120px"><input type="time" class="form-input ds-time" data-key="' + settingKey + '" value="' + val + '"></div>';
+        row += '</div>';
+        return row;
+      }
+
+      function selectRow(key, label, desc, settingKey, options) {
+        var val = st[settingKey] || options[0].value;
+        var row = '<div class="admin-settings-row">';
+        row += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t(label) + '</span><span class="admin-settings-label-desc">' + t(desc) + '</span></div>';
+        row += '<div class="form-group" style="max-width:160px"><select class="form-input ds-select" data-key="' + settingKey + '">';
+        options.forEach(function (opt) {
+          row += '<option value="' + opt.value + '"' + (val === opt.value ? ' selected' : '') + '>' + opt.label + '</option>';
+        });
+        row += '</select></div></div>';
+        return row;
+      }
+
+      html += '<div class="admin-settings-card">';
+      html += '<div class="admin-settings-card-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> ' + t('ds_pos_features') + '</div>';
+      html += '<div class="admin-settings-card-body">';
+      html += toggleRow('discount', 'ds_order_discount', 'ds_order_discount_desc', 'featureDiscount');
+      html += toggleRow('hold', 'ds_hold_order', 'ds_hold_order_desc', 'featureHoldOrder');
+      html += toggleRow('tables', 'ds_table_mgmt', 'ds_table_mgmt_desc', 'featureTableManagement');
+      html += toggleRow('tips', 'ds_tips', 'ds_tips_desc', 'featureTips');
+      html += toggleRow('notes', 'ds_order_notes', 'ds_order_notes_desc', 'featureOrderNotes');
+      html += toggleRow('split', 'ds_split_bill', 'ds_split_bill_desc', 'featureSplitBill');
+      html += toggleRow('transfer', 'ds_table_transfer', 'ds_table_transfer_desc', 'featureTableTransfer');
+      html += toggleRow('customer', 'ds_customer_name', 'ds_customer_name_desc', 'featureCustomerName');
+      html += toggleRow('kitchen', 'ds_kitchen_display', 'ds_kitchen_display_desc', 'featureKitchenDisplay');
+      html += toggleRow('loyalty', 'ds_loyalty', 'ds_loyalty_desc', 'featureLoyalty');
+      html += toggleRow('inventory', 'ds_inventory', 'ds_inventory_desc', 'featureInventory');
+      html += toggleRow('autoprint', 'ds_auto_print', 'ds_auto_print_desc', 'featureAutoPrint');
+      html += toggleRow('sound', 'ds_sound_effects', 'ds_sound_effects_desc', 'featureSoundEffects');
+      html += toggleRow('multipay', 'ds_multi_payment', 'ds_multi_payment_desc', 'featureMultiPayment');
+      html += '</div></div>';
+
+      html += '<div class="admin-settings-card">';
+      html += '<div class="admin-settings-card-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg> ' + t('ds_business') + '</div>';
+      html += '<div class="admin-settings-card-body">';
+      html += numberRow('minorder', 'ds_min_order', 'ds_min_order_desc', 'dashboardMinOrder', 0, 99999, 'ل.س');
+      html += numberRow('maxdisc', 'ds_max_discount', 'ds_max_discount_desc', 'dashboardMaxDiscount', 0, 100, '%');
+      html += selectRow('currency', 'ds_currency', 'ds_currency_desc', 'dashboardCurrency', [
+        { value: 'ل.س', label: 'ليرة سورية (ل.س)' },
+        { value: 'ل.ل', label: 'ليرة لبنانية (ل.ل)' },
+        { value: '$', label: 'دولار أمريكي ($)' }
+      ]);
+      html += toggleRow('auto_reports', 'ds_auto_reports', 'ds_auto_reports_desc', 'featureAutoReports');
+      html += textRow('receipt_footer', 'ds_receipt_footer', 'ds_receipt_footer_desc', 'dashboardReceiptFooter', (isAr ? 'شكراً لزيارتكم' : 'Thank you for visiting'));
+      html += '</div></div>';
+
+      html += '<div class="admin-settings-card">';
+      html += '<div class="admin-settings-card-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ' + t('ds_opening_hours') + '</div>';
+      html += '<div class="admin-settings-card-body">';
+      html += toggleRow('hours_enabled', 'ds_opening_hours', 'ds_opening_hours_desc', 'featureOpeningHours');
+      html += timeRow('open_time', 'ds_open_time', '', 'dashboardOpenTime');
+      html += timeRow('close_time', 'ds_close_time', '', 'dashboardCloseTime');
+      html += '</div></div>';
+
+      html += '<button class="btn btn-primary btn-lg admin-settings-save" id="ds-save-btn" style="margin-top:20px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> ' + t('ds_save') + '</button>';
+
+      html += '</div></div>';
       return html;
     },
 
@@ -1237,6 +1381,13 @@
         var saveBtn = document.getElementById('settings-save-btn');
         if (saveBtn) {
           saveBtn.addEventListener('click', function () { self.saveSettings(); });
+        }
+      }
+
+      if (this.state.activeTab === 'dashboard-settings') {
+        var dsSaveBtn = document.getElementById('ds-save-btn');
+        if (dsSaveBtn) {
+          dsSaveBtn.addEventListener('click', function () { self.saveDashboardSettings(); });
         }
       }
     }
