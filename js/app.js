@@ -459,13 +459,13 @@ const App = {
   getLogo(size) {
     size = size || 80;
     return `<svg width="${size}" height="${size}" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="50" cy="50" r="12" fill="#0D9488"/>
-      <ellipse cx="50" cy="50" rx="35" ry="14" stroke="#0D9488" stroke-width="2.5" fill="none" transform="rotate(0 50 50)"/>
-      <ellipse cx="50" cy="50" rx="35" ry="14" stroke="#14B8A6" stroke-width="2.5" fill="none" transform="rotate(60 50 50)"/>
-      <ellipse cx="50" cy="50" rx="35" ry="14" stroke="#0F766E" stroke-width="2.5" fill="none" transform="rotate(120 50 50)"/>
-      <circle cx="85" cy="50" r="5" fill="#14B8A6"/>
-      <circle cx="32.5" cy="21.7" r="5" fill="#0D9488"/>
-      <circle cx="32.5" cy="78.3" r="5" fill="#0F766E"/>
+      <circle cx="50" cy="50" r="12" fill="#C9A84C"/>
+      <ellipse cx="50" cy="50" rx="35" ry="14" stroke="#C9A84C" stroke-width="2.5" fill="none" transform="rotate(0 50 50)"/>
+      <ellipse cx="50" cy="50" rx="35" ry="14" stroke="#D4B76A" stroke-width="2.5" fill="none" transform="rotate(60 50 50)"/>
+      <ellipse cx="50" cy="50" rx="35" ry="14" stroke="#B8933A" stroke-width="2.5" fill="none" transform="rotate(120 50 50)"/>
+      <circle cx="85" cy="50" r="5" fill="#D4B76A"/>
+      <circle cx="32.5" cy="21.7" r="5" fill="#C9A84C"/>
+      <circle cx="32.5" cy="78.3" r="5" fill="#B8933A"/>
     </svg>`;
   },
 
