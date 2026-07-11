@@ -1060,7 +1060,7 @@ Nawa.POS = {
   formatPrice(amount) {
     const num = parseFloat(amount) || 0;
     const isAr = (Nawa.I18n && Nawa.I18n.getLang) ? Nawa.I18n.getLang() === 'ar' : true;
-    const currency = isAr ? 'ر.س' : 'SAR';
+    const currency = isAr ? 'ل.س' : 'SYP';
     return num.toFixed(2) + ' ' + currency;
   },
 

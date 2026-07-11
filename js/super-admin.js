@@ -597,7 +597,7 @@ Nawa.SuperAdmin = {
         <div class="sa-plan-card ${p.featured ? 'featured' : ''}">
           ${p.badge ? `<div class="sa-plan-badge">${p.badge}</div>` : ''}
           <div class="sa-plan-name">${p.name}</div>
-          <div class="sa-plan-price">${p.price} <span>ر.س / شهرياً</span></div>
+          <div class="sa-plan-price">${p.price} <span>ل.س / شهرياً</span></div>
           <ul class="sa-plan-features">
             ${p.features.map(f => `
               <li class="${f.enabled ? '' : 'disabled'}">
@@ -991,9 +991,9 @@ Nawa.SuperAdmin = {
               <div class="sa-form-group">
                 <label>باقة الاشتراك</label>
                 <select class="sa-form-select" id="saRestPlan" required>
-                  <option value="basic">أساسي - 199 ر.س/شهر</option>
-                  <option value="medium" selected>متوسط - 499 ر.س/شهر</option>
-                  <option value="advanced">متقدم - 999 ر.س/شهر</option>
+                  <option value="basic">أساسي - 199 ل.س/شهر</option>
+                  <option value="medium" selected>متوسط - 499 ل.س/شهر</option>
+                  <option value="advanced">متقدم - 999 ل.س/شهر</option>
                 </select>
               </div>
               <div class="sa-form-group">
@@ -1231,7 +1231,7 @@ Nawa.SuperAdmin = {
 
   formatCurrency(amount) {
     const isAr = (Nawa.I18n && Nawa.I18n.getLang) ? Nawa.I18n.getLang() === 'ar' : true;
-    const currency = isAr ? 'ر.س' : 'SAR';
+    const currency = isAr ? 'ل.س' : 'SYP';
     return new Intl.NumberFormat(isAr ? 'ar-SA' : 'en-US', {
       style: 'decimal',
       minimumFractionDigits: 0,

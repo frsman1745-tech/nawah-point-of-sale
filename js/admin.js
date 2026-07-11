@@ -86,7 +86,7 @@
 
     formatCurrency(amount) {
       var isAr = (window.Nawa.I18n && window.Nawa.I18n.getLang) ? window.Nawa.I18n.getLang() === 'ar' : true;
-      var currency = isAr ? 'ر.س' : 'SAR';
+      var currency = isAr ? 'ل.س' : 'SYP';
       return Number(amount || 0).toLocaleString(isAr ? 'ar-SA' : 'en-US') + ' ' + currency;
     },
 
@@ -322,7 +322,7 @@
         var pct = Math.max((day.total / maxVal) * 100, 2);
         html += '<div class="admin-bar-col">';
         html += '<div class="admin-bar" style="height:' + pct + '%">';
-        html += '<span class="admin-bar-tooltip">' + day.total.toLocaleString('ar-SA') + ' ر.س</span>';
+        html += '<span class="admin-bar-tooltip">' + day.total.toLocaleString('ar-SA') + ' ل.س</span>';
         html += '</div>';
         html += '<span class="admin-bar-label">' + day.label + '</span>';
         html += '</div>';
