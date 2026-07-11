@@ -24,10 +24,18 @@
       sidebarOpen: false,
       dsActiveTab: 'products',
       dsModal: { open: false, type: '', editId: null },
+      dailyReport: null,
+      dailyReportDate: new Date().toISOString().split('T')[0],
+      dailyReportLoading: false,
       products: [],
       categories: [],
       floors: [],
-      attendance: []
+      attendance: [],
+      orderHistory: [],
+      orderHistoryLoading: false,
+      orderHistoryFilters: { from: '', to: '' },
+      orderHistorySearch: '',
+      orderHistoryExpanded: null
     },
 
     async init() {
@@ -230,7 +238,9 @@
       switch (this.state.activeTab) {
         case 'dashboard': html += this.renderDashboard(); break;
         case 'audit': html += this.renderAuditLog(); break;
+        case 'daily-report': html += this.renderDailyReport(); break;
         case 'employees': html += this.renderEmployees(); break;
+        case 'order-history': html += this.renderOrderHistory(); break;
         case 'dashboard-settings': html += this.renderDashboardSettings(); break;
         case 'settings': html += this.renderSettings(); break;
       }
@@ -246,7 +256,9 @@
       var tabs = [
         { id: 'dashboard', label: isAr ? 'لوحة التحكم' : 'Dashboard', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>' },
         { id: 'audit', label: isAr ? 'سجل التعديلات' : 'Audit Log', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>' },
+        { id: 'daily-report', label: isAr ? 'التقرير اليومي' : 'Daily Report', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>' },
         { id: 'employees', label: isAr ? 'الموظفين' : 'Employees', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>' },
+        { id: 'order-history', label: isAr ? 'سجل الطلبات' : 'Order History', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>' },
         { id: 'dashboard-settings', label: isAr ? 'تعديلات اللوحة' : 'Dashboard Mods', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/><path d="M14 9l3 0"/><path d="M14 15l3 0"/></svg>' },
         { id: 'settings', label: isAr ? 'الإعدادات' : 'Settings', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>' }
       ];
@@ -285,7 +297,9 @@
       var titles = {
         dashboard: (window.Nawa.I18n.getLang() === 'ar') ? 'لوحة التحكم' : 'Dashboard',
         audit: (window.Nawa.I18n.getLang() === 'ar') ? 'سجل التعديلات' : 'Audit Log',
+        'daily-report': (window.Nawa.I18n.getLang() === 'ar') ? 'التقرير اليومي' : 'Daily Report',
         employees: (window.Nawa.I18n.getLang() === 'ar') ? 'الموظفين' : 'Employees',
+        'order-history': (window.Nawa.I18n.getLang() === 'ar') ? 'سجل الطلبات' : 'Order History',
         'dashboard-settings': (window.Nawa.I18n.getLang() === 'ar') ? 'تعديلات اللوحة' : 'Dashboard Settings',
         settings: (window.Nawa.I18n.getLang() === 'ar') ? 'الإعدادات' : 'Settings'
       };
@@ -699,6 +713,223 @@
       return entries;
     },
 
+    renderDailyReport() {
+      var self = this;
+      var t = Nawa.I18n.t;
+      var isAr = (window.Nawa.I18n && window.Nawa.I18n.getLang) ? window.Nawa.I18n.getLang() === 'ar' : true;
+      var report = this.state.dailyReport;
+      var loading = this.state.dailyReportLoading;
+      var date = this.state.dailyReportDate;
+
+      var html = '<div class="admin-daily-report" style="max-width:960px;margin:0 auto;">';
+
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px;">';
+      html += '<div style="display:flex;align-items:center;gap:12px;">';
+      html += '<label style="font-weight:600;color:var(--navy,#0E1C3D);">' + t('date') + ':</label>';
+      html += '<input type="date" class="form-input" id="daily-report-date" value="' + Admin._escapeHtml(date) + '" style="max-width:200px;">';
+      html += '<button class="btn btn-primary btn-sm" id="daily-report-load" style="display:flex;align-items:center;gap:4px;">';
+      html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> ' + (isAr ? 'عرض' : 'View');
+      html += '</button>';
+      html += '</div>';
+      html += '<button class="btn btn-outline" id="daily-report-print" style="display:flex;align-items:center;gap:6px;"' + (!report ? ' disabled' : '') + '>';
+      html += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> ' + t('print_report');
+      html += '</button>';
+      html += '</div>';
+
+      if (loading) {
+        html += '<div class="admin-loading" style="text-align:center;padding:60px;"><div class="spinner-lg"></div><div style="margin-top:12px;color:var(--text-secondary,#6B7280);">' + t('loading') + '</div></div>';
+      } else if (!report) {
+        html += '<div class="admin-empty"><div class="admin-empty-title">' + (isAr ? 'اختر التاريخ واضغط عرض' : 'Select a date and click View') + '</div><div class="admin-empty-desc">' + t('daily_report_desc') + '</div></div>';
+      } else {
+        html += '<div class="admin-report-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px;">';
+        html += '<div class="admin-stat-card color-sales" style="border-radius:12px;padding:20px;">';
+        html += '<div style="font-size:0.8125rem;color:var(--text-secondary,#6B7280);margin-bottom:4px;">' + t('total_sales') + '</div>';
+        html += '<div style="font-size:1.5rem;font-weight:700;color:var(--navy,#0E1C3D);">' + self.formatCurrency(report.totalSales) + '</div>';
+        html += '</div>';
+        html += '<div class="admin-stat-card color-orders" style="border-radius:12px;padding:20px;">';
+        html += '<div style="font-size:0.8125rem;color:var(--text-secondary,#6B7280);margin-bottom:4px;">' + t('order_count') + '</div>';
+        html += '<div style="font-size:1.5rem;font-weight:700;color:var(--navy,#0E1C3D);">' + self.formatNumber(report.orderCount) + '</div>';
+        html += '</div>';
+        html += '<div class="admin-stat-card color-avg" style="border-radius:12px;padding:20px;">';
+        html += '<div style="font-size:0.8125rem;color:var(--text-secondary,#6B7280);margin-bottom:4px;">' + t('avg_order') + '</div>';
+        html += '<div style="font-size:1.5rem;font-weight:700;color:var(--navy,#0E1C3D);">' + self.formatCurrency(report.avgOrderValue) + '</div>';
+        html += '</div>';
+        html += '</div>';
+
+        var pb = report.paymentBreakdown || {};
+        var pbTotal = (pb.cash || 0) + (pb.card || 0) + (pb.online || 0);
+        if (pbTotal > 0) {
+          html += '<div class="card" style="margin-bottom:24px;">';
+          html += '<div class="card-header"><span style="font-weight:700;">' + t('payment_breakdown') + '</span></div>';
+          html += '<div style="padding:16px;">';
+          html += '<div class="admin-payment-dist">';
+
+          var methods = [
+            { key: 'cash', label: isAr ? 'نقدي' : 'Cash', color: '#22c55e' },
+            { key: 'card', label: isAr ? 'بطاقة' : 'Card', color: '#3B82F6' },
+            { key: 'online', label: isAr ? 'إلكتروني' : 'Online', color: '#8B5CF6' }
+          ];
+
+          methods.forEach(function (m) {
+            var val = pb[m.key] || 0;
+            if (val <= 0) return;
+            var pct = Math.round((val / pbTotal) * 100);
+            html += '<div class="admin-payment-row">';
+            html += '<div class="admin-payment-icon" style="background:' + m.color + '20;color:' + m.color + ';">';
+            html += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>';
+            html += '</div>';
+            html += '<div class="admin-payment-info"><div class="admin-payment-name">' + m.label + '</div>';
+            html += '<div class="admin-payment-bar"><div class="admin-payment-bar-fill" style="width:' + pct + '%;background:' + m.color + ';"></div></div>';
+            html += '<div style="font-size:0.75rem;color:var(--text-secondary,#6B7280);margin-top:2px;">' + self.formatCurrency(val) + '</div>';
+            html += '</div><span class="admin-payment-pct">' + pct + '%</span></div>';
+          });
+
+          html += '</div></div></div>';
+        }
+
+        if (report.topProducts && report.topProducts.length > 0) {
+          html += '<div class="card" style="margin-bottom:24px;">';
+          html += '<div class="card-header"><span style="font-weight:700;">' + t('top_products') + '</span></div>';
+          html += '<div class="table-wrapper">';
+          html += '<table class="admin-recent-table"><thead><tr>';
+          html += '<th>#</th><th>' + (isAr ? 'المنتج' : 'Product') + '</th><th>' + (isAr ? 'الكمية' : 'Quantity') + '</th><th>' + (isAr ? 'الإجمالي' : 'Total') + '</th>';
+          html += '</tr></thead><tbody>';
+          report.topProducts.forEach(function (p, i) {
+            html += '<tr>';
+            html += '<td>' + (i + 1) + '</td>';
+            html += '<td style="font-weight:600;">' + self._escapeHtml(p.name) + '</td>';
+            html += '<td>' + self.formatNumber(p.quantity) + '</td>';
+            html += '<td style="font-weight:600;">' + self.formatCurrency(p.total) + '</td>';
+            html += '</tr>';
+          });
+          html += '</tbody></table>';
+          html += '</div></div>';
+        }
+
+        if (report.cashierSummary && report.cashierSummary.length > 0) {
+          html += '<div class="card" style="margin-bottom:24px;">';
+          html += '<div class="card-header"><span style="font-weight:700;">' + t('cashier_summary') + '</span></div>';
+          html += '<div class="table-wrapper">';
+          html += '<table class="admin-recent-table"><thead><tr>';
+          html += '<th>' + (isAr ? 'أمين الصندوق' : 'Cashier') + '</th><th>' + t('order_count') + '</th><th>' + t('total_sales') + '</th>';
+          html += '</tr></thead><tbody>';
+          report.cashierSummary.forEach(function (c) {
+            html += '<tr>';
+            html += '<td style="font-weight:600;">' + self._escapeHtml(c.name) + '</td>';
+            html += '<td>' + self.formatNumber(c.orderCount) + '</td>';
+            html += '<td style="font-weight:600;">' + self.formatCurrency(c.totalSales) + '</td>';
+            html += '</tr>';
+          });
+          html += '</tbody></table>';
+          html += '</div></div>';
+        }
+
+        if (report.orderCount === 0) {
+          html += '<div class="admin-empty"><div class="admin-empty-title">' + (isAr ? 'لا توجد طلبات في هذا التاريخ' : 'No orders for this date') + '</div></div>';
+        }
+      }
+
+      html += '</div>';
+      return html;
+    },
+
+    async loadDailyReport() {
+      var self = this;
+      var dateInput = document.getElementById('daily-report-date');
+      if (dateInput) this.state.dailyReportDate = dateInput.value;
+      this.state.dailyReportLoading = true;
+      this.render();
+
+      try {
+        var res = await Nawa.Auth.apiFetch('/reports/daily?date=' + encodeURIComponent(this.state.dailyReportDate));
+        if (res.ok) {
+          self.state.dailyReport = await res.json();
+        } else {
+          self.state.dailyReport = null;
+          self.showNotification(Nawa.I18n.t('error_generic'), 'error');
+        }
+      } catch (e) {
+        self.state.dailyReport = null;
+        self.showNotification(Nawa.I18n.t('error_generic'), 'error');
+      }
+
+      this.state.dailyReportLoading = false;
+      this.render();
+    },
+
+    printDailyReport() {
+      var report = this.state.dailyReport;
+      if (!report) return;
+      var t = Nawa.I18n.t;
+      var self = this;
+      var isAr = (window.Nawa.I18n && window.Nawa.I18n.getLang) ? window.Nawa.I18n.getLang() === 'ar' : true;
+
+      var printHtml = '<!DOCTYPE html><html dir="' + (isAr ? 'rtl' : 'ltr') + '" lang="' + (isAr ? 'ar' : 'en') + '"><head><meta charset="UTF-8"><title>' + t('daily_report') + '</title>';
+      printHtml += '<style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:' + (isAr ? 'Tajawal' : 'Inter') + ',sans-serif;padding:20px;color:#1a1a1a;font-size:14px;}';
+      printHtml += 'h1{text-align:center;margin-bottom:4px;font-size:1.5rem;}';
+      printHtml += '.subtitle{text-align:center;color:#666;margin-bottom:20px;font-size:0.875rem;}';
+      printHtml += '.cards{display:flex;gap:16px;margin-bottom:20px;justify-content:center;}';
+      printHtml += '.card{flex:1;max-width:200px;border:1px solid #e5e7eb;border-radius:8px;padding:12px;text-align:center;}';
+      printHtml += '.card-label{font-size:0.75rem;color:#666;margin-bottom:4px;}';
+      printHtml += '.card-value{font-size:1.25rem;font-weight:700;}';
+      printHtml += 'table{width:100%;border-collapse:collapse;margin-bottom:20px;}';
+      printHtml += 'th,td{padding:8px 12px;text-align:' + (isAr ? 'right' : 'left') + ';border-bottom:1px solid #e5e7eb;}';
+      printHtml += 'th{background:#f3f4f6;font-weight:600;font-size:0.8125rem;}';
+      printHtml += 'td{font-size:0.875rem;}';
+      printHtml += 'h2{font-size:1.1rem;margin-bottom:10px;color:#0E1C3D;}';
+      printHtml += '.section{margin-bottom:20px;}';
+      printHtml += '.footer{text-align:center;color:#999;font-size:0.75rem;margin-top:30px;border-top:1px solid #e5e7eb;padding-top:10px;}';
+      printHtml += '.payment-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f3f4f6;}';
+      printHtml += '@media print{body{padding:10px;}}</style></head><body>';
+
+      printHtml += '<h1>' + (isAr ? 'التقرير اليومي' : 'Daily Report') + '</h1>';
+      printHtml += '<div class="subtitle">' + report.date + '</div>';
+
+      printHtml += '<div class="cards">';
+      printHtml += '<div class="card"><div class="card-label">' + t('total_sales') + '</div><div class="card-value">' + self.formatCurrency(report.totalSales) + '</div></div>';
+      printHtml += '<div class="card"><div class="card-label">' + t('order_count') + '</div><div class="card-value">' + self.formatNumber(report.orderCount) + '</div></div>';
+      printHtml += '<div class="card"><div class="card-label">' + t('avg_order') + '</div><div class="card-value">' + self.formatCurrency(report.avgOrderValue) + '</div></div>';
+      printHtml += '</div>';
+
+      var pb = report.paymentBreakdown || {};
+      var hasPayments = (pb.cash || 0) + (pb.card || 0) + (pb.online || 0) > 0;
+      if (hasPayments) {
+        printHtml += '<div class="section"><h2>' + t('payment_breakdown') + '</h2>';
+        if (pb.cash) printHtml += '<div class="payment-row"><span>' + (isAr ? 'نقدي' : 'Cash') + '</span><span>' + self.formatCurrency(pb.cash) + '</span></div>';
+        if (pb.card) printHtml += '<div class="payment-row"><span>' + (isAr ? 'بطاقة' : 'Card') + '</span><span>' + self.formatCurrency(pb.card) + '</span></div>';
+        if (pb.online) printHtml += '<div class="payment-row"><span>' + (isAr ? 'إلكتروني' : 'Online') + '</span><span>' + self.formatCurrency(pb.online) + '</span></div>';
+        printHtml += '</div>';
+      }
+
+      if (report.topProducts && report.topProducts.length > 0) {
+        printHtml += '<div class="section"><h2>' + t('top_products') + '</h2>';
+        printHtml += '<table><thead><tr><th>#</th><th>' + (isAr ? 'المنتج' : 'Product') + '</th><th>' + (isAr ? 'الكمية' : 'Qty') + '</th><th>' + (isAr ? 'الإجمالي' : 'Total') + '</th></tr></thead><tbody>';
+        report.topProducts.forEach(function (p, i) {
+          printHtml += '<tr><td>' + (i + 1) + '</td><td>' + self._escapeHtml(p.name) + '</td><td>' + p.quantity + '</td><td>' + self.formatCurrency(p.total) + '</td></tr>';
+        });
+        printHtml += '</tbody></table></div>';
+      }
+
+      if (report.cashierSummary && report.cashierSummary.length > 0) {
+        printHtml += '<div class="section"><h2>' + t('cashier_summary') + '</h2>';
+        printHtml += '<table><thead><tr><th>' + (isAr ? 'أمين الصندوق' : 'Cashier') + '</th><th>' + t('order_count') + '</th><th>' + t('total_sales') + '</th></tr></thead><tbody>';
+        report.cashierSummary.forEach(function (c) {
+          printHtml += '<tr><td>' + self._escapeHtml(c.name) + '</td><td>' + c.orderCount + '</td><td>' + self.formatCurrency(c.totalSales) + '</td></tr>';
+        });
+        printHtml += '</tbody></table></div>';
+      }
+
+      printHtml += '<div class="footer">' + (isAr ? 'تم طباعة هذا التقرير في' : 'Report printed on') + ' ' + new Date().toLocaleString(isAr ? 'ar-SA' : 'en-US') + '</div>';
+      printHtml += '</body></html>';
+
+      var printWindow = window.open('', '_blank', 'width=800,height=600');
+      if (printWindow) {
+        printWindow.document.write(printHtml);
+        printWindow.document.close();
+        setTimeout(function () { printWindow.print(); }, 500);
+      }
+    },
+
     renderEmployees() {
       var self = this;
       var employees = this.state.employees;
@@ -789,6 +1020,175 @@
 
       html += '</div>';
       return html;
+    },
+
+    renderOrderHistory() {
+      var self = this;
+      var t = Nawa.I18n.t;
+      var isAr = (Nawa.I18n.getLang() === 'ar');
+      var filters = this.state.orderHistoryFilters;
+      var search = this.state.orderHistorySearch;
+      var orders = this.state.orderHistory || [];
+
+      var filtered = orders;
+      if (search) {
+        var term = search.toLowerCase();
+        filtered = filtered.filter(function (o) {
+          return (o.id && o.id.toLowerCase().indexOf(term) !== -1) ||
+            (o.cashierName && o.cashierName.toLowerCase().indexOf(term) !== -1) ||
+            (o.tableId && o.tableId.toLowerCase().indexOf(term) !== -1);
+        });
+      }
+
+      var totalRevenue = 0;
+      filtered.forEach(function (o) { totalRevenue += o.total || 0; });
+      var avgOrder = filtered.length > 0 ? Math.round(totalRevenue / filtered.length) : 0;
+
+      var html = '<div class="admin-order-history">';
+
+      html += '<div class="admin-oh-toolbar">';
+      html += '<div class="admin-date-range">';
+      html += '<label class="form-label" style="margin:0 4px 0 0;font-size:0.8125rem;">' + t('from_date') + '</label>';
+      html += '<input type="date" class="form-input" id="oh-date-from" value="' + self._escapeHtml(filters.from || '') + '">';
+      html += '<span class="admin-date-range-separator"> ' + t('to') + ' </span>';
+      html += '<input type="date" class="form-input" id="oh-date-to" value="' + self._escapeHtml(filters.to || '') + '">';
+      html += '<button class="btn btn-primary btn-sm" id="oh-fetch-btn" style="margin-right:8px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> ' + t('search') + '</button>';
+      html += '</div>';
+      html += '<div class="admin-oh-search">';
+      html += '<input type="text" class="form-input" id="oh-search" placeholder="' + t('search_orders') + '..." value="' + self._escapeHtml(search || '') + '">';
+      html += '</div>';
+      html += '<button class="btn btn-sm btn-outline" id="oh-export-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> ' + t('export_csv') + '</button>';
+      html += '</div>';
+
+      html += '<div class="admin-oh-stats">';
+      html += '<div class="admin-oh-stat-card"><div class="admin-oh-stat-value">' + self.formatNumber(filtered.length) + '</div><div class="admin-oh-stat-label">' + t('total_orders') + '</div></div>';
+      html += '<div class="admin-oh-stat-card"><div class="admin-oh-stat-value">' + self.formatCurrency(totalRevenue) + '</div><div class="admin-oh-stat-label">' + t('total_revenue') + '</div></div>';
+      html += '<div class="admin-oh-stat-card"><div class="admin-oh-stat-value">' + self.formatCurrency(avgOrder) + '</div><div class="admin-oh-stat-label">' + t('avg_order_value') + '</div></div>';
+      html += '</div>';
+
+      html += '<div class="admin-oh-table-wrapper">';
+      if (this.state.orderHistoryLoading) {
+        html += '<div class="admin-loading" style="padding:40px;text-align:center;"><div class="spinner-lg"></div></div>';
+      } else if (filtered.length === 0) {
+        html += '<div class="admin-empty"><div class="admin-empty-title">' + t('no_orders_yet') + '</div></div>';
+      } else {
+        html += '<table class="admin-oh-table"><thead><tr>';
+        html += '<th></th><th>' + t('order_number') + '</th><th>' + t('order_time') + '</th><th>' + t('order_cashier') + '</th><th>' + t('order_table') + '</th><th>' + t('order_items_count') + '</th><th>' + t('order_total') + '</th><th>' + t('order_status') + '</th>';
+        html += '</tr></thead><tbody>';
+
+        filtered.forEach(function (order, idx) {
+          var orderNum = order.id ? order.id.slice(-6).toUpperCase() : '--';
+          var itemCount = order.items ? order.items.length : 0;
+          var statusClass = order.status === 'paid' || order.status === 'completed' ? 'paid' : (order.status === 'cancelled' ? 'cancelled' : (order.status === 'held' ? 'held' : 'pending'));
+          var statusLabel = order.status === 'paid' ? t('status_paid') : (order.status === 'completed' ? t('status_completed') : (order.status === 'cancelled' ? t('status_cancelled') : (order.status === 'held' ? t('status_held') : t('status_active'))));
+
+          html += '<tr class="admin-oh-row" data-oh-idx="' + idx + '">';
+          html += '<td><button class="admin-oh-expand-btn" data-oh-idx="' + idx + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button></td>';
+          html += '<td style="font-weight:600;">#' + orderNum + '</td>';
+          html += '<td>' + self.formatDate(order.createdAt) + ' ' + self.formatTime(order.createdAt) + '</td>';
+          html += '<td>' + self._escapeHtml(order.cashierName || '--') + '</td>';
+          html += '<td>' + self._escapeHtml(order.tableId || '--') + '</td>';
+          html += '<td>' + itemCount + '</td>';
+          html += '<td style="font-weight:600;">' + self.formatCurrency(order.total) + '</td>';
+          html += '<td><span class="admin-order-status ' + statusClass + '"><span class="admin-order-status-dot"></span>' + statusLabel + '</span></td>';
+          html += '</tr>';
+
+          html += '<tr class="admin-oh-detail-row" id="oh-detail-' + idx + '">';
+          html += '<td colspan="8">';
+          html += '<div class="admin-oh-detail-content">';
+          if (order.items && order.items.length > 0) {
+            order.items.forEach(function (item) {
+              var itemName = item.name || item.nameEn || t('item');
+              html += '<div class="admin-oh-detail-item">';
+              html += '<span class="admin-oh-detail-item-name">' + self._escapeHtml(itemName) + '</span>';
+              html += '<span class="admin-oh-detail-item-qty">× ' + (item.quantity || item.q || 1) + '</span>';
+              html += '<span class="admin-oh-detail-item-price">' + self.formatCurrency((item.price || item.pr || 0) * (item.quantity || item.q || 1)) + '</span>';
+              html += '</div>';
+            });
+          } else {
+            html += '<div style="color:var(--text-secondary,#6B7280);padding:8px 0;">' + t('no_data') + '</div>';
+          }
+          html += '</div></td></tr>';
+        });
+
+        html += '</tbody></table>';
+      }
+      html += '</div></div>';
+      return html;
+    },
+
+    async fetchOrderHistory() {
+      var self = this;
+      var t = Nawa.I18n.t;
+      this.state.orderHistoryLoading = true;
+      this.render();
+
+      var params = [];
+      if (this.state.orderHistoryFilters.from) params.push('from=' + this.state.orderHistoryFilters.from);
+      if (this.state.orderHistoryFilters.to) params.push('to=' + this.state.orderHistoryFilters.to);
+      params.push('limit=500');
+      var qs = params.length > 0 ? '?' + params.join('&') : '';
+
+      try {
+        var res = await Nawa.Auth.apiFetch('/orders/history' + qs);
+        if (res.ok) {
+          this.state.orderHistory = await res.json();
+        } else {
+          this.state.orderHistory = [];
+        }
+      } catch (e) {
+        this.state.orderHistory = [];
+      }
+      this.state.orderHistoryLoading = false;
+      this.render();
+    },
+
+    exportOrderHistoryCSV() {
+      var t = Nawa.I18n.t;
+      var isAr = (Nawa.I18n.getLang() === 'ar');
+      var orders = this.state.orderHistory || [];
+      var search = this.state.orderHistorySearch;
+
+      var filtered = orders;
+      if (search) {
+        var term = search.toLowerCase();
+        filtered = filtered.filter(function (o) {
+          return (o.id && o.id.toLowerCase().indexOf(term) !== -1) ||
+            (o.cashierName && o.cashierName.toLowerCase().indexOf(term) !== -1);
+        });
+      }
+
+      var header = isAr ? 'رقم الطلب,الوقت,أمين الصندوق,الطاولة,العناصر,الإجمالي,الحالة,طريقة الدفع' : 'Order #,Time,Cashier,Table,Items,Total,Status,Payment Method';
+      var rows = [header];
+
+      var self = this;
+      filtered.forEach(function (o) {
+        var orderNum = o.id ? o.id.slice(-6).toUpperCase() : '';
+        var itemCount = o.items ? o.items.length : 0;
+        var statusLabel = o.status === 'paid' ? (isAr ? 'مدفوع' : 'Paid') : o.status;
+        var payLabel = o.paymentMethod === 'card' ? (isAr ? 'بطاقة' : 'Card') : (isAr ? 'نقدي' : 'Cash');
+        var row = [
+          '"' + orderNum + '"',
+          '"' + (o.createdAt || '') + '"',
+          '"' + (o.cashierName || '') + '"',
+          '"' + (o.tableId || '') + '"',
+          '"' + itemCount + '"',
+          '"' + (o.total || 0) + '"',
+          '"' + statusLabel + '"',
+          '"' + payLabel + '"'
+        ];
+        rows.push(row.join(','));
+      });
+
+      var csvContent = '\uFEFF' + rows.join('\n');
+      var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'order_history_' + new Date().toISOString().split('T')[0] + '.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+      this.showNotification(Nawa.I18n.t('success_export'), 'success');
     },
 
     renderDashboardSettings() {
@@ -1764,6 +2164,78 @@
             self.render();
           });
         });
+      }
+
+      if (this.state.activeTab === 'daily-report') {
+        var dailyDate = document.getElementById('daily-report-date');
+        var dailyLoad = document.getElementById('daily-report-load');
+        var dailyPrint = document.getElementById('daily-report-print');
+
+        if (dailyLoad) {
+          dailyLoad.addEventListener('click', function () { self.loadDailyReport(); });
+        }
+        if (dailyDate) {
+          dailyDate.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { self.loadDailyReport(); }
+          });
+        }
+        if (dailyPrint) {
+          dailyPrint.addEventListener('click', function () { self.printDailyReport(); });
+        }
+
+        if (!this.state.dailyReport && !this.state.dailyReportLoading) {
+          this.loadDailyReport();
+        }
+      }
+
+      if (this.state.activeTab === 'order-history') {
+        var ohDateFrom = document.getElementById('oh-date-from');
+        var ohDateTo = document.getElementById('oh-date-to');
+        var ohFetchBtn = document.getElementById('oh-fetch-btn');
+        var ohSearch = document.getElementById('oh-search');
+        var ohExportBtn = document.getElementById('oh-export-btn');
+
+        if (ohFetchBtn) {
+          ohFetchBtn.addEventListener('click', function () {
+            if (ohDateFrom) self.state.orderHistoryFilters.from = ohDateFrom.value;
+            if (ohDateTo) self.state.orderHistoryFilters.to = ohDateTo.value;
+            self.fetchOrderHistory();
+          });
+        }
+        if (ohSearch) {
+          var ohSearchTimeout;
+          ohSearch.addEventListener('input', function () {
+            clearTimeout(ohSearchTimeout);
+            ohSearchTimeout = setTimeout(function () {
+              self.state.orderHistorySearch = ohSearch.value;
+              self.render();
+            }, 300);
+          });
+        }
+        if (ohExportBtn) {
+          ohExportBtn.addEventListener('click', function () { self.exportOrderHistoryCSV(); });
+        }
+
+        var ohExpandBtns = document.querySelectorAll('.admin-oh-expand-btn');
+        ohExpandBtns.forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var idx = btn.getAttribute('data-oh-idx');
+            var detailRow = document.getElementById('oh-detail-' + idx);
+            if (detailRow) {
+              var isOpen = detailRow.classList.contains('open');
+              document.querySelectorAll('.admin-oh-detail-row.open').forEach(function (r) { r.classList.remove('open'); });
+              document.querySelectorAll('.admin-oh-expand-btn.open').forEach(function (b) { b.classList.remove('open'); });
+              if (!isOpen) {
+                detailRow.classList.add('open');
+                btn.classList.add('open');
+              }
+            }
+          });
+        });
+
+        if (this.state.orderHistory.length === 0 && !this.state.orderHistoryLoading) {
+          this.fetchOrderHistory();
+        }
       }
 
       if (this.state.activeTab === 'settings') {

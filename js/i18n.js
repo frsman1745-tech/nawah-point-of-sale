@@ -173,6 +173,13 @@
     reports: { ar: 'التقارير', en: 'Reports' },
     sales_report: { ar: 'تقرير المبيعات', en: 'Sales Report' },
     daily_report: { ar: 'التقرير اليومي', en: 'Daily Report' },
+    daily_report_desc: { ar: 'تقرير نهاية اليوم', en: 'End of day report' },
+    order_count: { ar: 'عدد الطلبات', en: 'Orders' },
+    avg_order: { ar: 'متوسط قيمة الطلب', en: 'Avg Order Value' },
+    payment_breakdown: { ar: 'تفاصيل المدفوعات', en: 'Payment Breakdown' },
+    top_products: { ar: 'المنتجات الأكثر مبيعاً', en: 'Top Products' },
+    cashier_summary: { ar: 'ملخص أمين الصندوق', en: 'Cashier Summary' },
+    print_report: { ar: 'طباعة', en: 'Print' },
     monthly_report: { ar: 'التقرير الشهري', en: 'Monthly Report' },
     revenue: { ar: 'الإيرادات', en: 'Revenue' },
     total_sales: { ar: 'إجمالي المبيعات', en: 'Total Sales' },
@@ -440,7 +447,42 @@
     already_clocked_in: { ar: 'تم تسجيل الحضور مسبقاً', en: 'Already clocked in' },
     quick_fire: { ar: 'الأكثر طلباً', en: 'Quick Fire' },
     order_note_placeholder: { ar: 'أضف ملاحظة للطلب...', en: 'Add order note...' },
-    order_note: { ar: 'ملاحظة الطلب', en: 'Order Note' }
+    order_note: { ar: 'ملاحظة الطلب', en: 'Order Note' },
+
+    // ── Split Bill ──
+    split_equal: { ar: 'تقسيم متساوي', en: 'Equal Split' },
+    split_custom: { ar: 'تقسيم مخصص', en: 'Custom Split' },
+    split_parts: { ar: 'أجزاء', en: 'Parts' },
+    split_remaining: { ar: 'المتبقي', en: 'Remaining' },
+    split_paid: { ar: 'مدفوع', en: 'Paid' },
+    split_pay_part: { ar: 'دفع هذا الجزء', en: 'Pay This Part' },
+    split_cancel: { ar: 'إلغاء التقسيم', en: 'Cancel Split' },
+    split_complete: { ar: 'تم دفع جميع الأجزاء!', en: 'All parts paid!' },
+
+    // ── Order History ──
+    order_history: { ar: 'سجل الطلبات', en: 'Order History' },
+    order_history_desc: { ar: 'عرض الطلبات السابقة', en: 'View past orders' },
+    search_orders: { ar: 'بحث في الطلبات', en: 'Search orders' },
+    order_number: { ar: 'رقم الطلب', en: 'Order #' },
+    order_time: { ar: 'الوقت', en: 'Time' },
+    order_cashier: { ar: 'أمين الصندوق', en: 'Cashier' },
+    order_table: { ar: 'الطاولة', en: 'Table' },
+    order_items_count: { ar: 'العناصر', en: 'Items' },
+    order_total: { ar: 'الإجمالي', en: 'Total' },
+    order_detail: { ar: 'تفاصيل الطلب', en: 'Order Details' },
+    date_range: { ar: 'النطاق الزمني', en: 'Date Range' },
+    from_date: { ar: 'من', en: 'From' },
+    to_date: { ar: 'إلى', en: 'To' },
+    export_csv: { ar: 'تصدير', en: 'Export CSV' },
+    view_order: { ar: 'عرض', en: 'View' },
+    status_active: { ar: 'نشط', en: 'Active' },
+    status_held: { ar: 'معلق', en: 'Held' },
+    status_completed: { ar: 'مكتمل', en: 'Completed' },
+    status_cancelled: { ar: 'ملغي', en: 'Cancelled' },
+    status_paid: { ar: 'مدفوع', en: 'Paid' },
+    summary_stats: { ar: 'ملخص الفترة', en: 'Period Summary' },
+    total_revenue: { ar: 'إجمالي الإيرادات', en: 'Total Revenue' },
+    avg_order_value: { ar: 'متوسط قيمة الطلب', en: 'Avg Order Value' }
   };
 
   function setDirection(lang) {

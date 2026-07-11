@@ -682,6 +682,83 @@ app.get('/api/reports/weekly', authMiddleware, superAdminOnly, async (req, res) 
   } catch (e) { console.error('Report error:', e); res.status(500).json({ error: 'Failed to generate report' }); }
 });
 
+// === Daily Report ===
+app.get('/api/reports/daily', authMiddleware, adminOrAbove, async (req, res) => {
+  try {
+    const { Order: O, Employee: E } = getModels();
+    const dateStr = req.query.date || new Date().toISOString().split('T')[0];
+    const dayStart = new Date(dateStr + 'T00:00:00.000Z');
+    const dayEnd = new Date(dateStr + 'T23:59:59.999Z');
+
+    const filter = { createdAt: { $gte: dayStart, $lte: dayEnd } };
+    if (req.user.restaurantId) filter.restaurantId = req.user.restaurantId;
+
+    const orders = await O.find(filter).lean();
+
+    let totalSales = 0;
+    let orderCount = 0;
+    let paymentBreakdown = { cash: 0, card: 0, online: 0 };
+    const productMap = {};
+    const cashierMap = {};
+
+    for (const order of orders) {
+      const tot = order.tot || 0;
+      totalSales += tot;
+      orderCount++;
+
+      const method = order.m || 'cash';
+      if (paymentBreakdown[method] !== undefined) {
+        paymentBreakdown[method] += tot;
+      } else {
+        paymentBreakdown[method] = tot;
+      }
+
+      for (const item of (order.items || [])) {
+        const name = item.p || 'Unknown';
+        if (!productMap[name]) productMap[name] = { name: name, quantity: 0, total: 0 };
+        productMap[name].quantity += item.q || 0;
+        productMap[name].total += (item.pr || 0) * (item.q || 0);
+      }
+
+      const empId = order.employeeId || 'unknown';
+      if (!cashierMap[empId]) cashierMap[empId] = { employeeId: empId, name: empId, orderCount: 0, totalSales: 0 };
+      cashierMap[empId].orderCount++;
+      cashierMap[empId].totalSales += tot;
+    }
+
+    const topProducts = Object.values(productMap)
+      .sort(function (a, b) { return b.quantity - a.quantity; })
+      .slice(0, 5);
+
+    const cashierArr = Object.values(cashierMap);
+
+    if (cashierArr.length > 0) {
+      const empIds = cashierArr.map(function (c) { return c.employeeId; });
+      const emps = await E.find({ _id: { $in: empIds } }).lean();
+      const empNameMap = {};
+      emps.forEach(function (e) { empNameMap[e._id.toString()] = e.name || e.username; });
+      cashierArr.forEach(function (c) {
+        c.name = empNameMap[c.employeeId] || c.name;
+      });
+    }
+
+    const avgOrderValue = orderCount > 0 ? Math.round(totalSales / orderCount) : 0;
+
+    res.json({
+      date: dateStr,
+      totalSales: totalSales,
+      orderCount: orderCount,
+      avgOrderValue: avgOrderValue,
+      paymentBreakdown: paymentBreakdown,
+      topProducts: topProducts,
+      cashierSummary: cashierArr
+    });
+  } catch (e) {
+    console.error('Daily report error:', e);
+    res.status(500).json({ error: 'Failed to generate daily report' });
+  }
+});
+
 // === Orders ===
 app.get('/api/orders', authMiddleware, async (req, res) => {
   try {
@@ -695,6 +772,31 @@ app.get('/api/orders', authMiddleware, async (req, res) => {
     const orders = await O.find(filter).sort({ createdAt: -1 }).limit(limit).lean();
     res.json(orders.map(mapOrder));
   } catch (e) { res.status(500).json({ error: 'Failed to fetch orders' }); }
+});
+
+app.get('/api/orders/history', authMiddleware, async (req, res) => {
+  try {
+    const { Order: O, Employee: E } = getModels();
+    const filter = {};
+    if (req.user.restaurantId) filter.restaurantId = req.user.restaurantId;
+    if (req.query.all === 'true' && req.user.role === 'super_admin') delete filter.restaurantId;
+    if (req.query.from) filter.createdAt = { $gte: new Date(req.query.from + 'T00:00:00.000Z') };
+    if (req.query.to) filter.createdAt = { ...filter.createdAt, $lte: new Date(req.query.to + 'T23:59:59.999Z') };
+    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+    const orders = await O.find(filter).sort({ createdAt: -1 }).limit(limit).lean();
+
+    const employeeFilter = {};
+    if (req.user.restaurantId) employeeFilter.restaurantId = req.user.restaurantId;
+    const employees = await Employee.find(employeeFilter).lean();
+    const empMap = {};
+    employees.forEach(function (e) { empMap[e._id.toString()] = e.name || e.username; });
+
+    res.json(orders.map(function (o) {
+      var mapped = mapOrder(o);
+      mapped.cashierName = empMap[o.employeeId] || '';
+      return mapped;
+    }));
+  } catch (e) { res.status(500).json({ error: 'Failed to fetch order history' }); }
 });
 
 app.post('/api/orders', authMiddleware, async (req, res) => {

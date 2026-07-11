@@ -14,7 +14,10 @@ Nawa.POS = {
     categories: [],
     attendanceRecord: null,
     orderNote: '',
-    orders: []
+    orders: [],
+    splitMode: null,
+    splitParts: [],
+    splitPaid: 0
   },
 
   TAX_RATE: 0.15,
@@ -274,6 +277,7 @@ Nawa.POS = {
       <div id="pos-payment-modal" class="modal-overlay hidden"></div>
       <div id="pos-receipt-modal" class="modal-overlay hidden"></div>
       <div id="pos-hold-modal" class="modal-overlay hidden"></div>
+      <div id="pos-history-modal" class="modal-overlay hidden"></div>
     `;
   },
 
@@ -293,6 +297,10 @@ Nawa.POS = {
           <button class="btn btn-ghost pos-table-btn" id="pos-select-table">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
             <span>${tableName}</span>
+          </button>
+          <button class="btn btn-ghost pos-history-btn" id="pos-order-history-btn" style="display:flex;align-items:center;gap:6px;padding:8px 14px;font-size:0.8125rem;font-weight:600;border-radius:8px;" title="${Nawa.I18n.t('order_history')}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <span>${Nawa.I18n.t('order_history')}</span>
           </button>
         </div>
         <div class="pos-header-left">
@@ -824,6 +832,10 @@ Nawa.POS = {
   async processPayment() {
     if (this.state.cart.length === 0) return;
 
+    this.state.splitMode = null;
+    this.state.splitParts = [];
+    this.state.splitPaid = 0;
+
     const { subtotal, tax, total } = this.getCartTotal();
     const modal = document.getElementById('pos-payment-modal');
     if (!modal) return;
@@ -861,8 +873,12 @@ Nawa.POS = {
             <span class="pos-change-value">${this.formatPrice(0)}</span>
           </div>
         </div>
-        <div class="modal-footer">
+        <div class="modal-footer" style="flex-wrap:wrap;gap:8px;">
           <button class="btn btn-ghost" data-action="close-payment-modal">${Nawa.I18n.t('cancel')}</button>
+          <button class="btn btn-outline btn-split-bill" data-action="open-split-bill">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            ${Nawa.I18n.t('split_bill')}
+          </button>
           <button class="btn btn-success btn-lg" id="pos-confirm-payment" disabled>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
             ${Nawa.I18n.t('confirm_payment')}
@@ -1015,6 +1031,14 @@ Nawa.POS = {
                 <div class="pos-cart-row">
                   <span>${Nawa.I18n.t('change')}</span>
                   <span>${this.formatPrice(order.change || 0)}</span>
+                </div>` : ''}
+              ${order.payments && order.payments.length > 1 ? `
+                <div style="margin-top:8px;border-top:1px dashed var(--border);padding-top:8px;">
+                  <div style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">${Nawa.I18n.t('split_bill')}:</div>
+                  ${order.payments.map(function(p, i) {
+                    const methodLabel = p.method === 'card' ? Nawa.I18n.t('credit_card') : Nawa.I18n.t('cash');
+                    return '<div class="pos-cart-row" style="font-size:0.8125rem;"><span>' + (i + 1) + '. ' + methodLabel + '</span><span>' + Nawa.POS.formatPrice(p.amount) + '</span></div>';
+                  }).join('')}
                 </div>` : ''}
             </div>
             <div class="pos-receipt-divider">===========================</div>
@@ -1244,13 +1268,59 @@ Nawa.POS = {
         return;
       }
       if (action === 'close-payment-modal') {
-        const pm = document.getElementById('pos-payment-modal');
-        if (pm) pm.classList.add('hidden');
+        if (this.state.splitMode) {
+          this.cancelSplitBill();
+        } else {
+          const pm = document.getElementById('pos-payment-modal');
+          if (pm) pm.classList.add('hidden');
+        }
         return;
       }
       if (action === 'close-receipt-modal') {
         const rm = document.getElementById('pos-receipt-modal');
         if (rm) rm.classList.add('hidden');
+        return;
+      }
+      if (action === 'close-history-modal') {
+        const hm = document.getElementById('pos-history-modal');
+        if (hm) hm.classList.add('hidden');
+        return;
+      }
+
+      // Split bill actions
+      if (action === 'open-split-bill') {
+        this.initSplitBill();
+        return;
+      }
+      if (action === 'split-select-equal') {
+        this.initSplitBill('equal');
+        return;
+      }
+      if (action === 'split-select-custom') {
+        this.initSplitBill('custom');
+        return;
+      }
+      if (action === 'split-cancel') {
+        this.cancelSplitBill();
+        return;
+      }
+      if (action === 'split-toggle-method') {
+        const mi = parseInt(target.dataset.splitIndex, 10);
+        if (!isNaN(mi)) this.toggleSplitPartMethod(mi);
+        return;
+      }
+      if (action === 'split-pay') {
+        const pi = parseInt(target.dataset.splitIndex, 10);
+        if (!isNaN(pi)) this.paySplitPart(pi);
+        return;
+      }
+      if (action === 'split-add-part') {
+        this.addCustomSplitPart();
+        return;
+      }
+      if (action === 'split-remove-part') {
+        const ri = parseInt(target.dataset.splitIndex, 10);
+        if (!isNaN(ri)) this.removeCustomSplitPart(ri);
         return;
       }
     });
@@ -1290,6 +1360,10 @@ Nawa.POS = {
           this._clockOut();
           return;
         }
+        if (e.target.closest('#pos-order-history-btn')) {
+          this.showOrderHistory();
+          return;
+        }
       });
 
     // Search input
@@ -1307,6 +1381,10 @@ Nawa.POS = {
       if (e.target.classList.contains('pos-note-input')) {
         this.state.orderNote = e.target.value;
       }
+      if (e.target.classList.contains('split-amount-input')) {
+        const idx = parseInt(e.target.dataset.splitIndex, 10);
+        if (!isNaN(idx)) this.updateSplitPartAmount(idx, e.target.value);
+      }
     });
 
     // Keyboard shortcut: Escape to close modals
@@ -1314,9 +1392,17 @@ Nawa.POS = {
       if (e.key === 'Escape') {
         this.hideTableModal();
         const pm = document.getElementById('pos-payment-modal');
-        if (pm) pm.classList.add('hidden');
+        if (pm) {
+          if (this.state.splitMode) {
+            this.cancelSplitBill();
+          } else {
+            pm.classList.add('hidden');
+          }
+        }
         const rm = document.getElementById('pos-receipt-modal');
         if (rm) rm.classList.add('hidden');
+        const hm = document.getElementById('pos-history-modal');
+        if (hm) hm.classList.add('hidden');
       }
     });
     this._listenersAttached = true;
@@ -1336,6 +1422,278 @@ Nawa.POS = {
   hideTableModal() {
     const modal = document.getElementById('pos-table-modal');
     if (modal) modal.classList.add('hidden');
+  },
+
+  // ===========================
+  // SPLIT BILL
+  // ===========================
+  initSplitBill(mode) {
+    if (this.state.cart.length === 0) return;
+    const { total } = this.getCartTotal();
+
+    if (mode === 'equal') {
+      const count = parseInt(prompt(Nawa.I18n.t('split_parts'), '2'), 10);
+      if (!count || count < 2 || count > 10) return;
+      const partAmount = Math.round((total / count) * 100) / 100;
+      const parts = [];
+      for (let i = 0; i < count; i++) {
+        const isLast = i === count - 1;
+        const amount = isLast
+          ? Math.round((total - partAmount * (count - 1)) * 100) / 100
+          : partAmount;
+        parts.push({ amount, method: 'cash', paid: false });
+      }
+      this.state.splitMode = 'equal';
+      this.state.splitParts = parts;
+      this.state.splitPaid = 0;
+    } else if (mode === 'custom') {
+      this.state.splitMode = 'custom';
+      this.state.splitParts = [
+        { amount: 0, method: 'cash', paid: false },
+        { amount: 0, method: 'cash', paid: false }
+      ];
+      this.state.splitPaid = 0;
+    } else {
+      this.showSplitChoice();
+      return;
+    }
+
+    this.renderSplitModal();
+  },
+
+  showSplitChoice() {
+    const modal = document.getElementById('pos-payment-modal');
+    if (!modal) return;
+
+    const { total } = this.getCartTotal();
+
+    modal.classList.remove('hidden');
+    modal.innerHTML = `
+      <div class="modal split-modal">
+        <div class="modal-header">
+          <h3>${Nawa.I18n.t('split_bill')}</h3>
+          <button class="btn btn-ghost btn-icon" data-action="close-payment-modal">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="split-remaining-bar">
+            <span>${Nawa.I18n.t('total')}</span>
+            <span class="split-remaining-value">${this.formatPrice(total)}</span>
+          </div>
+          <div class="split-choice-grid">
+            <button class="split-choice-card" data-action="split-select-equal">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+              <span class="split-choice-title">${Nawa.I18n.t('split_equal')}</span>
+              <span class="split-choice-desc">${Nawa.I18n.t('split_parts')}: 2, 3, 4...</span>
+            </button>
+            <button class="split-choice-card" data-action="split-select-custom">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              <span class="split-choice-title">${Nawa.I18n.t('split_custom')}</span>
+              <span class="split-choice-desc">${Nawa.I18n.t('amount_due')}</span>
+            </button>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" data-action="close-payment-modal">${Nawa.I18n.t('cancel')}</button>
+        </div>
+      </div>`;
+  },
+
+  addCustomSplitPart() {
+    if (this.state.splitParts.length >= 10) return;
+    this.state.splitParts.push({ amount: 0, method: 'cash', paid: false });
+    this.renderSplitModal();
+  },
+
+  removeCustomSplitPart(index) {
+    if (this.state.splitParts.length <= 2) return;
+    this.state.splitParts.splice(index, 1);
+    this.renderSplitModal();
+  },
+
+  updateSplitPartAmount(index, amount) {
+    const val = parseFloat(amount) || 0;
+    this.state.splitParts[index].amount = val;
+  },
+
+  toggleSplitPartMethod(index) {
+    const part = this.state.splitParts[index];
+    part.method = part.method === 'cash' ? 'card' : 'cash';
+    this.renderSplitModal();
+  },
+
+  cancelSplitBill() {
+    this.state.splitMode = null;
+    this.state.splitParts = [];
+    this.state.splitPaid = 0;
+    const modal = document.getElementById('pos-payment-modal');
+    if (modal) modal.classList.add('hidden');
+  },
+
+  async paySplitPart(index) {
+    const part = this.state.splitParts[index];
+    if (!part || part.paid) return;
+
+    const { total } = this.getCartTotal();
+
+    if (this.state.splitMode === 'custom') {
+      if (part.amount <= 0) {
+        this._showToast(Nawa.I18n.t('error_validation'), 'warning');
+        return;
+      }
+      const currentTotal = this.state.splitParts.reduce((s, p, i) => i === index ? s : s + p.amount, 0);
+      if (currentTotal + part.amount > total + 0.01) {
+        this._showToast(Nawa.I18n.t('error_validation'), 'warning');
+        return;
+      }
+    }
+
+    part.paid = true;
+    this.state.splitPaid += part.amount;
+    this.renderSplitModal();
+
+    const remaining = Math.round((total - this.state.splitPaid) * 100) / 100;
+    if (remaining <= 0.01) {
+      await this._completeSplitOrder();
+    }
+  },
+
+  async _completeSplitOrder() {
+    const { subtotal, tax, total } = this.getCartTotal();
+    const payments = this.state.splitParts.map(p => ({
+      amount: p.amount,
+      method: p.method,
+      paid: true
+    }));
+
+    const totalReceived = payments.reduce((s, p) => s + p.amount, 0);
+
+    const order = {
+      id: this._generateId(),
+      items: JSON.parse(JSON.stringify(this.state.cart)),
+      subtotal,
+      tax,
+      total,
+      note: this.state.orderNote,
+      amountReceived: totalReceived,
+      change: Math.round((totalReceived - total) * 100) / 100,
+      paymentMethod: 'split',
+      payments: payments,
+      tableId: this.state.currentTable || null,
+      floorId: this.state.currentFloor || null,
+      employeeId: this.state.employee ? (this.state.employee.id || this.state.employee.username) : null,
+      status: 'paid',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    try {
+      await Nawa.DB.add(Nawa.CONFIG.STORES.ORDERS, order);
+
+      if (this.state.currentTable) {
+        await this._updateTableStatus(this.state.currentTable, 'available', null);
+      }
+
+      await Nawa.Audit.log('payment_processed', Nawa.CONFIG.STORES.ORDERS, order.id, { tableId: order.tableId, total: order.total, paymentMethod: 'split', parts: payments.length });
+
+      this.state.splitMode = null;
+      this.state.splitParts = [];
+      this.state.splitPaid = 0;
+
+      const pm = document.getElementById('pos-payment-modal');
+      if (pm) pm.classList.add('hidden');
+
+      this.generateReceipt(order);
+      this.state.cart = [];
+      this.state.orderNote = '';
+      this.state.currentTable = null;
+      this.render();
+      this._showToast(Nawa.I18n.t('split_complete'), 'success');
+    } catch (e) {
+      this._showToast(Nawa.I18n.t('error_generic'), 'error');
+    }
+  },
+
+  renderSplitModal() {
+    const modal = document.getElementById('pos-payment-modal');
+    if (!modal) return;
+
+    const { total } = this.getCartTotal();
+    const remaining = Math.round((total - this.state.splitPaid) * 100) / 100;
+    const isCustom = this.state.splitMode === 'custom';
+
+    const partsHtml = this.state.splitParts.map((part, i) => {
+      const statusIcon = part.paid
+        ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>'
+        : '';
+      const paidClass = part.paid ? ' split-part-paid' : '';
+
+      const cashActive = part.method === 'cash' ? ' active' : '';
+      const cardActive = part.method === 'card' ? ' active' : '';
+
+      const amountInput = isCustom && !part.paid
+        ? `<input type="number" class="form-input split-amount-input" value="${part.amount || ''}" step="0.01" min="0" placeholder="0.00" data-split-index="${i}" data-action="split-amount-change" />`
+        : `<span class="split-part-amount-value">${this.formatPrice(part.amount)}</span>`;
+
+      const removeBtn = isCustom && !part.paid && this.state.splitParts.length > 2
+        ? `<button class="btn btn-ghost btn-icon split-remove-btn" data-action="split-remove-part" data-split-index="${i}" title="${Nawa.I18n.t('delete')}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>`
+        : '';
+
+      const payBtn = part.paid
+        ? `<span class="split-paid-label">${statusIcon} ${Nawa.I18n.t('split_paid')}</span>`
+        : `<button class="btn btn-success btn-sm split-pay-btn" data-action="split-pay" data-split-index="${i}">${Nawa.I18n.t('split_pay_part')}</button>`;
+
+      return `
+        <div class="split-part-card${paidClass}">
+          <div class="split-part-header">
+            <span class="split-part-label">${Nawa.I18n.t('split_parts')} ${i + 1}</span>
+            ${removeBtn}
+          </div>
+          <div class="split-part-body">
+            ${amountInput}
+            <div class="split-method-toggle">
+              <button class="split-method-btn${cashActive}" data-action="split-toggle-method" data-split-index="${i}" ${part.paid ? 'disabled' : ''}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M12 10v4"/><path d="M6 10h.01M18 10h.01"/></svg>
+                ${Nawa.I18n.t('cash')}
+              </button>
+              <button class="split-method-btn${cardActive}" data-action="split-toggle-method" data-split-index="${i}" ${part.paid ? 'disabled' : ''}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                ${Nawa.I18n.t('credit_card')}
+              </button>
+            </div>
+            ${payBtn}
+          </div>
+        </div>`;
+    }).join('');
+
+    const addPartBtn = isCustom
+      ? `<button class="btn btn-outline btn-sm split-add-btn" data-action="split-add-part" style="width:100%;margin-top:8px;">+ ${Nawa.I18n.t('add')}</button>`
+      : '';
+
+    modal.classList.remove('hidden');
+    modal.innerHTML = `
+      <div class="modal split-modal">
+        <div class="modal-header">
+          <h3>${Nawa.I18n.t('split_bill')}</h3>
+          <button class="btn btn-ghost btn-icon" data-action="split-cancel">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="split-remaining-bar">
+            <span>${Nawa.I18n.t('split_remaining')}</span>
+            <span class="split-remaining-value">${this.formatPrice(Math.max(0, remaining))}</span>
+          </div>
+          <div class="split-parts-list">
+            ${partsHtml}
+          </div>
+          ${addPartBtn}
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" data-action="split-cancel">${Nawa.I18n.t('split_cancel')}</button>
+        </div>
+      </div>`;
   },
 
   // ===========================
@@ -1375,6 +1733,149 @@ Nawa.POS = {
       toast.style.transition = 'all 0.3s ease';
       setTimeout(() => toast.remove(), 300);
     }, 3000);
+  },
+
+  // ===========================
+  // ORDER HISTORY
+  // ===========================
+  async showOrderHistory() {
+    const modal = document.getElementById('pos-history-modal');
+    if (!modal) return;
+
+    modal.classList.remove('hidden');
+    modal.innerHTML = `
+      <div class="modal pos-history-modal">
+        <div class="modal-header">
+          <h3>${Nawa.I18n.t('order_history')}</h3>
+          <button class="btn btn-ghost btn-icon" data-action="close-history-modal">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+        <div class="modal-body" style="padding:0;">
+          <div class="pos-history-search" style="padding:12px 16px;border-bottom:1px solid var(--border);">
+            <input type="text" class="form-input pos-history-search-input" placeholder="${Nawa.I18n.t('search_orders')}..." />
+          </div>
+          <div class="pos-history-list" id="pos-history-list">
+            <div class="admin-loading" style="padding:40px;text-align:center;"><div class="spinner-lg"></div></div>
+          </div>
+        </div>
+      </div>`;
+
+    var self = this;
+    var listEl = document.getElementById('pos-history-list');
+
+    try {
+      var res = await Nawa.Auth.apiFetch('/orders/history?limit=50');
+      if (res.ok) {
+        var orders = await res.json();
+        self._orderHistoryData = orders;
+        self._renderOrderHistoryList(listEl, orders);
+      } else {
+        listEl.innerHTML = '<div class="admin-empty"><div class="admin-empty-title">' + Nawa.I18n.t('error_generic') + '</div></div>';
+      }
+    } catch (e) {
+      listEl.innerHTML = '<div class="admin-empty"><div class="admin-empty-title">' + Nawa.I18n.t('error_network') + '</div></div>';
+    }
+
+    var searchInput = modal.querySelector('.pos-history-search-input');
+    if (searchInput) {
+      var debounce;
+      searchInput.addEventListener('input', function () {
+        clearTimeout(debounce);
+        debounce = setTimeout(function () {
+          var term = searchInput.value.toLowerCase();
+          var filtered = (self._orderHistoryData || []).filter(function (o) {
+            var orderNum = o.id ? o.id.slice(-6).toUpperCase() : '';
+            return orderNum.toLowerCase().indexOf(term) !== -1;
+          });
+          self._renderOrderHistoryList(listEl, filtered);
+        }, 250);
+      });
+    }
+  },
+
+  _renderOrderHistoryList(container, orders) {
+    if (!container) return;
+    var self = this;
+    var lang = Nawa.I18n.getLang();
+    var t = Nawa.I18n.t;
+
+    if (!orders || orders.length === 0) {
+      container.innerHTML = '<div class="admin-empty" style="padding:40px;"><div class="admin-empty-title">' + t('no_orders_yet') + '</div></div>';
+      return;
+    }
+
+    var html = '';
+    orders.forEach(function (order) {
+      var orderNum = order.id ? order.id.slice(-6).toUpperCase() : '------';
+      var itemCount = order.items ? order.items.reduce(function (s, i) { return s + (i.quantity || 1); }, 0) : 0;
+      var statusClass = order.status === 'paid' || order.status === 'completed' ? 'paid' : (order.status === 'cancelled' ? 'cancelled' : (order.status === 'held' ? 'held' : 'pending'));
+      var statusLabel = order.status === 'paid' ? t('status_paid') : (order.status === 'completed' ? t('status_completed') : (order.status === 'cancelled' ? t('status_cancelled') : (order.status === 'held' ? t('status_held') : t('status_active'))));
+
+      var tableName = order.tableId || t('none');
+      var time = order.createdAt ? new Date(order.createdAt).toLocaleTimeString(lang === 'ar' ? 'ar-SA' : 'en-US', { hour: '2-digit', minute: '2-digit' }) : '--';
+
+      html += '<div class="pos-history-item" data-history-id="' + self._escapeHtml(order.id) + '">';
+      html += '<div class="pos-history-item-left">';
+      html += '<div class="pos-history-item-num">#' + orderNum + '</div>';
+      html += '<div class="pos-history-item-meta">' + time + ' · ' + self._escapeHtml(tableName) + '</div>';
+      html += '</div>';
+      html += '<div class="pos-history-item-right">';
+      html += '<div class="pos-history-item-total">' + self.formatPrice(order.total) + '</div>';
+      html += '<div class="pos-history-item-info">' + itemCount + ' ' + t('order_items_count') + ' · <span class="admin-order-status ' + statusClass + '" style="font-size:0.7rem;padding:2px 6px;"><span class="admin-order-status-dot"></span>' + statusLabel + '</span></div>';
+      html += '</div>';
+      html += '</div>';
+    });
+
+    container.innerHTML = html;
+
+    container.querySelectorAll('.pos-history-item').forEach(function (item) {
+      item.addEventListener('click', function () {
+        var id = item.getAttribute('data-history-id');
+        var order = (self._orderHistoryData || []).find(function (o) { return o.id === id; });
+        if (order) self._showOrderHistoryDetail(order);
+      });
+    });
+  },
+
+  _showOrderHistoryDetail(order) {
+    var self = this;
+    var lang = Nawa.I18n.getLang();
+    var t = Nawa.I18n.t;
+    var orderNum = order.id ? order.id.slice(-6).toUpperCase() : '------';
+    var date = order.createdAt ? new Date(order.createdAt).toLocaleString(lang === 'ar' ? 'ar-SA' : 'en-US') : '--';
+
+    var rows = (order.items || []).map(function (item) {
+      var name = lang === 'ar' ? (item.name || item.nameEn) : (item.nameEn || item.name);
+      return '<div class="pos-history-detail-row"><span>' + self._escapeHtml(name || t('item')) + '</span><span>× ' + (item.quantity || 1) + '</span><span>' + self.formatPrice((item.price || 0) * (item.quantity || 1)) + '</span></div>';
+    }).join('');
+
+    var modal = document.getElementById('pos-history-modal');
+    if (!modal) return;
+
+    modal.innerHTML = `
+      <div class="modal pos-history-modal">
+        <div class="modal-header">
+          <h3>${t('order_detail')} #${orderNum}</h3>
+          <button class="btn btn-ghost btn-icon" data-action="close-history-modal">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="pos-history-detail-meta">
+            <div><strong>${t('date')}:</strong> ${date}</div>
+            <div><strong>${t('order_table')}:</strong> ${self._escapeHtml(order.tableId || t('none'))}</div>
+            <div><strong>${t('payment_method')}:</strong> ${order.paymentMethod === 'card' ? t('credit_card') : t('cash')}</div>
+          </div>
+          <div class="pos-history-detail-items">${rows}</div>
+          <div class="pos-history-detail-totals">
+            <div class="pos-cart-row pos-cart-total"><span>${t('total')}</span><span>${self.formatPrice(order.total)}</span></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" data-action="close-history-modal">${t('close')}</button>
+        </div>
+      </div>`;
   },
 
   _generateId() {
