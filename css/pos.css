@@ -650,3 +650,34 @@ body[dir="ltr"] .pos-cart-panel {
     grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
   }
 }
+
+.pos-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  padding: 10px 24px;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  z-index: 10000;
+  opacity: 0;
+  transition: all 0.3s ease;
+  pointer-events: none;
+}
+.pos-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.pos-toast-success {
+  background: #22c55e;
+  color: #fff;
+}
+.pos-toast-error {
+  background: #ef4444;
+  color: #fff;
+}
+.pos-toast-info {
+  background: var(--navy, #0E1C3D);
+  color: #fff;
+}

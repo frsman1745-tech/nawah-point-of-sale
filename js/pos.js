@@ -11,7 +11,8 @@ Nawa.POS = {
     floors: [],
     tables: [],
     products: [],
-    categories: []
+    categories: [],
+    attendanceRecord: null
   },
 
   TAX_RATE: 0.15,
@@ -44,6 +45,10 @@ Nawa.POS = {
       this._loadProducts(),
       this._loadCategories()
     ]);
+
+    await this._syncFromServer();
+
+    await this._checkAttendance();
 
     if (this.state.floors.length > 0 && !this.state.currentFloor) {
       this.state.currentFloor = this.state.floors[0].id;
@@ -84,6 +89,133 @@ Nawa.POS = {
     } catch (e) {
       this.state.categories = [];
     }
+  },
+
+  async _syncFromServer() {
+    if (!Nawa.Auth || !Nawa.Auth.apiFetch) return;
+    var self = this;
+    var DB = Nawa.DB;
+    var S = Nawa.CONFIG.STORES;
+
+    try {
+      var res = await Nawa.Auth.apiFetch('/products');
+      if (res.ok) {
+        var serverProducts = await res.json();
+        if (serverProducts.length > 0) {
+          self.state.products = serverProducts.map(function (p) {
+            return { id: p.id, name: p.name, nameEn: p.nameEn, price: p.price, barcode: p.barcode, categoryId: p.categoryId, notes: p.notes, active: p.active };
+          });
+          for (var i = 0; i < self.state.products.length; i++) {
+            try { await DB.add(S.PRODUCTS, self.state.products[i]); } catch (e) {}
+          }
+        }
+      }
+    } catch (e) {}
+
+    try {
+      var res = await Nawa.Auth.apiFetch('/categories');
+      if (res.ok) {
+        var serverCats = await res.json();
+        if (serverCats.length > 0) {
+          self.state.categories = serverCats.map(function (c) {
+            return { id: c.id, name: c.name, sortOrder: c.sortOrder };
+          });
+          for (var i = 0; i < self.state.categories.length; i++) {
+            try { await DB.add(S.CATEGORIES, self.state.categories[i]); } catch (e) {}
+          }
+        }
+      }
+    } catch (e) {}
+
+    try {
+      var res = await Nawa.Auth.apiFetch('/tables');
+      if (res.ok) {
+        var serverTables = await res.json();
+        if (serverTables.length > 0) {
+          self.state.tables = serverTables.map(function (t) {
+            return { id: t.id, number: t.number, name: t.name, seats: t.seats, floorId: t.floorId, status: t.status };
+          });
+          for (var i = 0; i < self.state.tables.length; i++) {
+            try { await DB.add(S.TABLES, self.state.tables[i]); } catch (e) {}
+          }
+        }
+      }
+    } catch (e) {}
+
+    try {
+      var res = await Nawa.Auth.apiFetch('/floors');
+      if (res.ok) {
+        var serverFloors = await res.json();
+        if (serverFloors.length > 0) {
+          self.state.floors = serverFloors.map(function (f) {
+            return { id: f.id, name: f.name, sortOrder: f.sortOrder };
+          });
+          for (var i = 0; i < self.state.floors.length; i++) {
+            try { await DB.add(S.FLOORS, self.state.floors[i]); } catch (e) {}
+          }
+        }
+      }
+    } catch (e) {}
+  },
+
+  async _checkAttendance() {
+    this.state.attendanceRecord = null;
+    if (!Nawa.Auth || !Nawa.Auth.apiFetch) return;
+    try {
+      var res = await Nawa.Auth.apiFetch('/attendance/today');
+      if (res.ok) {
+        var data = await res.json();
+        this.state.attendanceRecord = data;
+      }
+    } catch (e) {}
+  },
+
+  async _clockIn() {
+    if (!Nawa.Auth || !Nawa.Auth.apiFetch) return;
+    try {
+      var res = await Nawa.Auth.apiFetch('/attendance/clock-in', { method: 'POST' });
+      if (res.ok) {
+        var data = await res.json();
+        this.state.attendanceRecord = data;
+        this.render();
+        this._showToast(Nawa.I18n.t('clock_in_success'), 'success');
+      }
+    } catch (e) {}
+  },
+
+  async _clockOut() {
+    if (!Nawa.Auth || !Nawa.Auth.apiFetch || !this.state.attendanceRecord) return;
+    try {
+      var res = await Nawa.Auth.apiFetch('/attendance/' + this.state.attendanceRecord.id + '/clock-out', { method: 'PUT' });
+      if (res.ok) {
+        var data = await res.json();
+        this.state.attendanceRecord = data;
+        this.render();
+        this._showToast(Nawa.I18n.t('clock_out_success'), 'success');
+      }
+    } catch (e) {}
+  },
+
+  _showToast(message, type) {
+    var toast = document.createElement('div');
+    toast.className = 'pos-toast pos-toast-' + (type || 'info');
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(function () { toast.classList.add('show'); }, 10);
+    setTimeout(function () { toast.classList.remove('show'); setTimeout(function () { toast.remove(); }, 300); }, 3000);
+  },
+
+  _renderAttendanceBtn() {
+    var rec = this.state.attendanceRecord;
+    var t = Nawa.I18n.t;
+    if (!rec) {
+      return '<button class="btn btn-success btn-sm" id="pos-clock-in" style="margin-left:8px;padding:4px 12px;font-size:0.8125rem;font-weight:600;border-radius:8px;display:flex;align-items:center;gap:4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' + t('clock_in') + '</button>';
+    }
+    if (!rec.clockOut) {
+      var time = rec.clockIn ? new Date(rec.clockIn).toLocaleTimeString(Nawa.I18n.getLang() === 'ar' ? 'ar-SA' : 'en-US', { hour: '2-digit', minute: '2-digit' }) : '';
+      return '<span style="margin-left:8px;display:flex;align-items:center;gap:6px;font-size:0.8125rem;color:#22c55e;font-weight:600;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' + t('clocked_in_at') + ' ' + time + ' <button class="btn btn-danger btn-sm" id="pos-clock-out" style="padding:2px 10px;font-size:0.75rem;border-radius:6px;">' + t('clock_out') + '</button></span>';
+    }
+    return '<span style="margin-left:8px;display:flex;align-items:center;gap:4px;font-size:0.8125rem;color:var(--text-secondary);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' + t('clock_out') + '</span>';
   },
 
   // ===========================
@@ -147,6 +279,7 @@ Nawa.POS = {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             ${emp ? this._escapeHtml(emp.name || emp.username || '') : ''}
           </span>
+          ${this._renderAttendanceBtn()}
           <button class="btn btn-ghost btn-icon" id="pos-lang-toggle" title="${Nawa.I18n.t('language')}">
             ${lang === 'ar' ? 'EN' : 'عربي'}
           </button>
@@ -1007,6 +1140,14 @@ Nawa.POS = {
         }
         if (e.target.closest('#pos-pay-btn')) {
           this.processPayment();
+          return;
+        }
+        if (e.target.closest('#pos-clock-in')) {
+          this._clockIn();
+          return;
+        }
+        if (e.target.closest('#pos-clock-out')) {
+          this._clockOut();
           return;
         }
       });

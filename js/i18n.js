@@ -428,7 +428,15 @@
     ds_receipt_footer: { ar: 'نص أسفل الإيصال', en: 'Receipt Footer Text' },
     ds_receipt_footer_desc: { ar: 'نص يظهر في نهاية كل إيصال (مثل شكراً لزيارتكم)', en: 'Text shown at bottom of every receipt (e.g. Thank you)' },
     ds_save: { ar: 'حفظ تعديلات اللوحة', en: 'Save Dashboard Settings' },
-    ds_saved: { ar: 'تم حفظ تعديلات اللوحة بنجاح', en: 'Dashboard settings saved successfully' }
+    ds_saved: { ar: 'تم حفظ تعديلات اللوحة بنجاح', en: 'Dashboard settings saved successfully' },
+    clock_in: { ar: 'تسجيل حضور', en: 'Clock In' },
+    clock_out: { ar: 'تسجيل انصراف', en: 'Clock Out' },
+    clocked_in_at: { ar: 'سجل الحضور الساعة', en: 'Clocked in at' },
+    attendance: { ar: 'الحضور والانصراف', en: 'Attendance' },
+    attendance_today: { ar: 'حضور اليوم', en: 'Today\'s Attendance' },
+    clock_in_success: { ar: 'تم تسجيل الحضور بنجاح', en: 'Clocked in successfully' },
+    clock_out_success: { ar: 'تم تسجيل الانصراف بنجاح', en: 'Clocked out successfully' },
+    already_clocked_in: { ar: 'تم تسجيل الحضور مسبقاً', en: 'Already clocked in' }
   };
 
   function setDirection(lang) {

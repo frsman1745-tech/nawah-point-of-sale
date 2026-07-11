@@ -161,7 +161,52 @@ const employeeSchema = new mongoose.Schema({
 
 employeeSchema.index({ restaurantId: 1, username: 1 }, { unique: true });
 
-let Restaurant, Registration, Order, AuditLog, Employee;
+const productSchema = new mongoose.Schema({
+  restaurantId: { type: String, required: true, index: true },
+  name: { type: String, required: true, trim: true },
+  nameEn: { type: String, trim: true },
+  price: { type: Number, default: 0 },
+  barcode: { type: String, trim: true },
+  categoryId: { type: String, trim: true },
+  notes: { type: String, trim: true },
+  active: { type: Boolean, default: true },
+  createdAt: { type: Date, default: Date.now }
+}, commonOpts);
+
+const categorySchema = new mongoose.Schema({
+  restaurantId: { type: String, required: true, index: true },
+  name: { type: String, required: true, trim: true },
+  sortOrder: { type: Number, default: 0 },
+  createdAt: { type: Date, default: Date.now }
+}, commonOpts);
+
+const tableSchema = new mongoose.Schema({
+  restaurantId: { type: String, required: true, index: true },
+  number: { type: Number, required: true },
+  name: { type: String, trim: true },
+  seats: { type: Number, default: 4 },
+  floorId: { type: String, trim: true },
+  status: { type: String, enum: ['free', 'occupied', 'reserved'], default: 'free' },
+  createdAt: { type: Date, default: Date.now }
+}, commonOpts);
+
+const floorSchema = new mongoose.Schema({
+  restaurantId: { type: String, required: true, index: true },
+  name: { type: String, required: true, trim: true },
+  sortOrder: { type: Number, default: 0 },
+  createdAt: { type: Date, default: Date.now }
+}, commonOpts);
+
+const attendanceSchema = new mongoose.Schema({
+  restaurantId: { type: String, required: true, index: true },
+  employeeId: { type: String, required: true, index: true },
+  employeeName: { type: String, trim: true },
+  clockIn: { type: Date, default: Date.now },
+  clockOut: { type: Date },
+  date: { type: String, index: true }
+}, commonOpts);
+
+let Restaurant, Registration, Order, AuditLog, Employee, Product, Cat, TableM, Floor, Attendance;
 
 function getModels() {
   if (!Restaurant) {
@@ -170,8 +215,13 @@ function getModels() {
     Order = mongoose.models.Order || mongoose.model('Order', orderSchema);
     AuditLog = mongoose.models.AuditLog || mongoose.model('AuditLog', auditLogSchema);
     Employee = mongoose.models.Employee || mongoose.model('Employee', employeeSchema);
+    Product = mongoose.models.Product || mongoose.model('Product', productSchema);
+    Cat = mongoose.models.Cat || mongoose.model('Cat', categorySchema);
+    TableM = mongoose.models.TableM || mongoose.model('TableM', tableSchema);
+    Floor = mongoose.models.Floor || mongoose.model('Floor', floorSchema);
+    Attendance = mongoose.models.Attendance || mongoose.model('Attendance', attendanceSchema);
   }
-  return { Restaurant, Registration, Order, AuditLog, Employee };
+  return { Restaurant, Registration, Order, AuditLog, Employee, Product, Cat, TableM, Floor, Attendance };
 }
 
 // === Auth Middleware ===
@@ -837,6 +887,304 @@ app.delete('/api/employees/:id', authMiddleware, adminOrAbove, async (req, res) 
     await E.findByIdAndDelete(req.params.id);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: 'Failed to delete employee' }); }
+});
+
+app.get('/api/products', authMiddleware, async (req, res) => {
+  try {
+    const { Product: P } = getModels();
+    const filter = {};
+    if (req.user.role !== 'super_admin' && req.user.restaurantId) filter.restaurantId = req.user.restaurantId;
+    if (req.query.all === 'true' && req.user.role === 'super_admin') delete filter.restaurantId;
+    const items = await P.find(filter).sort({ createdAt: -1 }).lean();
+    res.json(items.map(i => ({ ...i, id: i._id.toString() })));
+  } catch (e) { res.status(500).json({ error: 'Failed to fetch products' }); }
+});
+
+app.post('/api/products', authMiddleware, adminOrAbove, async (req, res) => {
+  try {
+    const { Product: P } = getModels();
+    if (!req.user.restaurantId && req.user.role !== 'super_admin') return res.status(403).json({ error: 'No restaurant associated' });
+    const b = req.body;
+    const item = new P({
+      restaurantId: req.user.restaurantId || sanitizeStr(b.restaurantId, 50),
+      name: sanitizeStr(b.name, 200),
+      nameEn: sanitizeStr(b.nameEn, 200),
+      price: typeof b.price === 'number' ? b.price : 0,
+      barcode: sanitizeStr(b.barcode, 100),
+      categoryId: sanitizeStr(b.categoryId, 50),
+      notes: sanitizeStr(b.notes, 500),
+      active: typeof b.active === 'boolean' ? b.active : true
+    });
+    await item.save();
+    res.json({ ...item.toObject(), id: item._id.toString() });
+  } catch (e) { res.status(500).json({ error: 'Failed to create product' }); }
+});
+
+app.put('/api/products/:id', authMiddleware, adminOrAbove, async (req, res) => {
+  try {
+    const { Product: P } = getModels();
+    const item = await P.findById(req.params.id);
+    if (!item) return res.status(404).json({ error: 'Product not found' });
+    if (req.user.role !== 'super_admin' && item.restaurantId !== req.user.restaurantId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    const b = req.body;
+    const allowed = {};
+    if (b.name !== undefined) allowed.name = sanitizeStr(b.name, 200);
+    if (b.nameEn !== undefined) allowed.nameEn = sanitizeStr(b.nameEn, 200);
+    if (b.price !== undefined && typeof b.price === 'number') allowed.price = b.price;
+    if (b.barcode !== undefined) allowed.barcode = sanitizeStr(b.barcode, 100);
+    if (b.categoryId !== undefined) allowed.categoryId = sanitizeStr(b.categoryId, 50);
+    if (b.notes !== undefined) allowed.notes = sanitizeStr(b.notes, 500);
+    if (b.active !== undefined && typeof b.active === 'boolean') allowed.active = b.active;
+    const updated = await P.findByIdAndUpdate(req.params.id, allowed, { new: true });
+    res.json({ ...updated.toObject(), id: updated._id.toString() });
+  } catch (e) { res.status(500).json({ error: 'Failed to update product' }); }
+});
+
+app.delete('/api/products/:id', authMiddleware, adminOrAbove, async (req, res) => {
+  try {
+    const { Product: P } = getModels();
+    const item = await P.findById(req.params.id);
+    if (!item) return res.status(404).json({ error: 'Product not found' });
+    if (req.user.role !== 'super_admin' && item.restaurantId !== req.user.restaurantId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    await P.findByIdAndDelete(req.params.id);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: 'Failed to delete product' }); }
+});
+
+app.get('/api/categories', authMiddleware, async (req, res) => {
+  try {
+    const { Cat: C } = getModels();
+    const filter = {};
+    if (req.user.role !== 'super_admin' && req.user.restaurantId) filter.restaurantId = req.user.restaurantId;
+    if (req.query.all === 'true' && req.user.role === 'super_admin') delete filter.restaurantId;
+    const items = await C.find(filter).sort({ sortOrder: 1 }).lean();
+    res.json(items.map(i => ({ ...i, id: i._id.toString() })));
+  } catch (e) { res.status(500).json({ error: 'Failed to fetch categories' }); }
+});
+
+app.post('/api/categories', authMiddleware, adminOrAbove, async (req, res) => {
+  try {
+    const { Cat: C } = getModels();
+    if (!req.user.restaurantId && req.user.role !== 'super_admin') return res.status(403).json({ error: 'No restaurant associated' });
+    const b = req.body;
+    const item = new C({
+      restaurantId: req.user.restaurantId || sanitizeStr(b.restaurantId, 50),
+      name: sanitizeStr(b.name, 100),
+      sortOrder: typeof b.sortOrder === 'number' ? b.sortOrder : 0
+    });
+    await item.save();
+    res.json({ ...item.toObject(), id: item._id.toString() });
+  } catch (e) { res.status(500).json({ error: 'Failed to create category' }); }
+});
+
+app.put('/api/categories/:id', authMiddleware, adminOrAbove, async (req, res) => {
+  try {
+    const { Cat: C } = getModels();
+    const item = await C.findById(req.params.id);
+    if (!item) return res.status(404).json({ error: 'Category not found' });
+    if (req.user.role !== 'super_admin' && item.restaurantId !== req.user.restaurantId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    const b = req.body;
+    const allowed = {};
+    if (b.name !== undefined) allowed.name = sanitizeStr(b.name, 100);
+    if (b.sortOrder !== undefined && typeof b.sortOrder === 'number') allowed.sortOrder = b.sortOrder;
+    const updated = await C.findByIdAndUpdate(req.params.id, allowed, { new: true });
+    res.json({ ...updated.toObject(), id: updated._id.toString() });
+  } catch (e) { res.status(500).json({ error: 'Failed to update category' }); }
+});
+
+app.delete('/api/categories/:id', authMiddleware, adminOrAbove, async (req, res) => {
+  try {
+    const { Cat: C } = getModels();
+    const item = await C.findById(req.params.id);
+    if (!item) return res.status(404).json({ error: 'Category not found' });
+    if (req.user.role !== 'super_admin' && item.restaurantId !== req.user.restaurantId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    await C.findByIdAndDelete(req.params.id);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: 'Failed to delete category' }); }
+});
+
+app.get('/api/tables', authMiddleware, async (req, res) => {
+  try {
+    const { TableM: T } = getModels();
+    const filter = {};
+    if (req.user.role !== 'super_admin' && req.user.restaurantId) filter.restaurantId = req.user.restaurantId;
+    if (req.query.all === 'true' && req.user.role === 'super_admin') delete filter.restaurantId;
+    if (req.query.floorId) filter.floorId = req.query.floorId;
+    const items = await T.find(filter).sort({ number: 1 }).lean();
+    res.json(items.map(i => ({ ...i, id: i._id.toString() })));
+  } catch (e) { res.status(500).json({ error: 'Failed to fetch tables' }); }
+});
+
+app.post('/api/tables', authMiddleware, adminOrAbove, async (req, res) => {
+  try {
+    const { TableM: T } = getModels();
+    if (!req.user.restaurantId && req.user.role !== 'super_admin') return res.status(403).json({ error: 'No restaurant associated' });
+    const b = req.body;
+    const item = new T({
+      restaurantId: req.user.restaurantId || sanitizeStr(b.restaurantId, 50),
+      number: typeof b.number === 'number' ? b.number : 1,
+      name: sanitizeStr(b.name, 100),
+      seats: typeof b.seats === 'number' ? b.seats : 4,
+      floorId: sanitizeStr(b.floorId, 50),
+      status: ['free', 'occupied', 'reserved'].includes(b.status) ? b.status : 'free'
+    });
+    await item.save();
+    res.json({ ...item.toObject(), id: item._id.toString() });
+  } catch (e) { res.status(500).json({ error: 'Failed to create table' }); }
+});
+
+app.put('/api/tables/:id', authMiddleware, adminOrAbove, async (req, res) => {
+  try {
+    const { TableM: T } = getModels();
+    const item = await T.findById(req.params.id);
+    if (!item) return res.status(404).json({ error: 'Table not found' });
+    if (req.user.role !== 'super_admin' && item.restaurantId !== req.user.restaurantId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    const b = req.body;
+    const allowed = {};
+    if (b.number !== undefined && typeof b.number === 'number') allowed.number = b.number;
+    if (b.name !== undefined) allowed.name = sanitizeStr(b.name, 100);
+    if (b.seats !== undefined && typeof b.seats === 'number') allowed.seats = b.seats;
+    if (b.floorId !== undefined) allowed.floorId = sanitizeStr(b.floorId, 50);
+    if (b.status !== undefined && ['free', 'occupied', 'reserved'].includes(b.status)) allowed.status = b.status;
+    const updated = await T.findByIdAndUpdate(req.params.id, allowed, { new: true });
+    res.json({ ...updated.toObject(), id: updated._id.toString() });
+  } catch (e) { res.status(500).json({ error: 'Failed to update table' }); }
+});
+
+app.delete('/api/tables/:id', authMiddleware, adminOrAbove, async (req, res) => {
+  try {
+    const { TableM: T } = getModels();
+    const item = await T.findById(req.params.id);
+    if (!item) return res.status(404).json({ error: 'Table not found' });
+    if (req.user.role !== 'super_admin' && item.restaurantId !== req.user.restaurantId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    await T.findByIdAndDelete(req.params.id);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: 'Failed to delete table' }); }
+});
+
+app.get('/api/floors', authMiddleware, async (req, res) => {
+  try {
+    const { Floor: F } = getModels();
+    const filter = {};
+    if (req.user.role !== 'super_admin' && req.user.restaurantId) filter.restaurantId = req.user.restaurantId;
+    if (req.query.all === 'true' && req.user.role === 'super_admin') delete filter.restaurantId;
+    const items = await F.find(filter).sort({ sortOrder: 1 }).lean();
+    res.json(items.map(i => ({ ...i, id: i._id.toString() })));
+  } catch (e) { res.status(500).json({ error: 'Failed to fetch floors' }); }
+});
+
+app.post('/api/floors', authMiddleware, adminOrAbove, async (req, res) => {
+  try {
+    const { Floor: F } = getModels();
+    if (!req.user.restaurantId && req.user.role !== 'super_admin') return res.status(403).json({ error: 'No restaurant associated' });
+    const b = req.body;
+    const item = new F({
+      restaurantId: req.user.restaurantId || sanitizeStr(b.restaurantId, 50),
+      name: sanitizeStr(b.name, 100),
+      sortOrder: typeof b.sortOrder === 'number' ? b.sortOrder : 0
+    });
+    await item.save();
+    res.json({ ...item.toObject(), id: item._id.toString() });
+  } catch (e) { res.status(500).json({ error: 'Failed to create floor' }); }
+});
+
+app.put('/api/floors/:id', authMiddleware, adminOrAbove, async (req, res) => {
+  try {
+    const { Floor: F } = getModels();
+    const item = await F.findById(req.params.id);
+    if (!item) return res.status(404).json({ error: 'Floor not found' });
+    if (req.user.role !== 'super_admin' && item.restaurantId !== req.user.restaurantId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    const b = req.body;
+    const allowed = {};
+    if (b.name !== undefined) allowed.name = sanitizeStr(b.name, 100);
+    if (b.sortOrder !== undefined && typeof b.sortOrder === 'number') allowed.sortOrder = b.sortOrder;
+    const updated = await F.findByIdAndUpdate(req.params.id, allowed, { new: true });
+    res.json({ ...updated.toObject(), id: updated._id.toString() });
+  } catch (e) { res.status(500).json({ error: 'Failed to update floor' }); }
+});
+
+app.delete('/api/floors/:id', authMiddleware, adminOrAbove, async (req, res) => {
+  try {
+    const { Floor: F } = getModels();
+    const item = await F.findById(req.params.id);
+    if (!item) return res.status(404).json({ error: 'Floor not found' });
+    if (req.user.role !== 'super_admin' && item.restaurantId !== req.user.restaurantId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    await F.findByIdAndDelete(req.params.id);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: 'Failed to delete floor' }); }
+});
+
+app.get('/api/attendance/today', authMiddleware, async (req, res) => {
+  try {
+    const { Attendance: A } = getModels();
+    const today = new Date().toISOString().split('T')[0];
+    const filter = { date: today };
+    if (req.user.role !== 'super_admin' && req.user.restaurantId) filter.restaurantId = req.user.restaurantId;
+    if (req.user.role !== 'super_admin') filter.employeeId = req.user.id;
+    const items = await A.find(filter).sort({ clockIn: -1 }).lean();
+    res.json(items.map(i => ({ ...i, id: i._id.toString() })));
+  } catch (e) { res.status(500).json({ error: 'Failed to fetch today attendance' }); }
+});
+
+app.get('/api/attendance', authMiddleware, async (req, res) => {
+  try {
+    const { Attendance: A } = getModels();
+    const filter = {};
+    if (req.user.role !== 'super_admin' && req.user.restaurantId) filter.restaurantId = req.user.restaurantId;
+    if (req.query.all === 'true' && req.user.role === 'super_admin') delete filter.restaurantId;
+    if (req.query.employeeId) filter.employeeId = req.query.employeeId;
+    if (req.query.date) filter.date = req.query.date;
+    const items = await A.find(filter).sort({ clockIn: -1 }).lean();
+    res.json(items.map(i => ({ ...i, id: i._id.toString() })));
+  } catch (e) { res.status(500).json({ error: 'Failed to fetch attendance' }); }
+});
+
+app.post('/api/attendance/clock-in', authMiddleware, async (req, res) => {
+  try {
+    const { Attendance: A } = getModels();
+    if (!req.user.restaurantId && req.user.role !== 'super_admin') return res.status(403).json({ error: 'No restaurant associated' });
+    const today = new Date().toISOString().split('T')[0];
+    const item = new A({
+      restaurantId: req.user.restaurantId || '',
+      employeeId: req.user.id,
+      employeeName: sanitizeStr(req.user.name, 100),
+      clockIn: new Date(),
+      date: today
+    });
+    await item.save();
+    res.json({ ...item.toObject(), id: item._id.toString() });
+  } catch (e) { res.status(500).json({ error: 'Failed to clock in' }); }
+});
+
+app.put('/api/attendance/:id/clock-out', authMiddleware, async (req, res) => {
+  try {
+    const { Attendance: A } = getModels();
+    const item = await A.findById(req.params.id);
+    if (!item) return res.status(404).json({ error: 'Attendance record not found' });
+    if (req.user.role !== 'super_admin' && item.employeeId !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    if (item.clockOut) return res.status(400).json({ error: 'Already clocked out' });
+    item.clockOut = new Date();
+    await item.save();
+    res.json({ ...item.toObject(), id: item._id.toString() });
+  } catch (e) { res.status(500).json({ error: 'Failed to clock out' }); }
 });
 
 module.exports = app;

@@ -26,7 +26,8 @@
       dsModal: { open: false, type: '', editId: null },
       products: [],
       categories: [],
-      floors: []
+      floors: [],
+      attendance: []
     },
 
     async init() {
@@ -62,6 +63,14 @@
         this.state.floors = floors || [];
 
         this.calculateStats();
+
+        try {
+          var attRes = await Nawa.Auth.apiFetch('/attendance');
+          if (attRes.ok) {
+            this.state.attendance = await attRes.json();
+          }
+        } catch (e) {}
+        this.state.attendance = this.state.attendance || [];
       } catch (e) {
         this.showNotification(Nawa.I18n.t('error_generic'), 'error');
       }
@@ -734,6 +743,19 @@
         html += '<div class="admin-employee-stats">';
         html += '<div class="admin-employee-stat"><div class="admin-employee-stat-value">' + self.formatNumber(paidOrders.length) + '</div><div class="admin-employee-stat-label">' + Nawa.I18n.t('completed_orders') + '</div></div>';
         html += '<div class="admin-employee-stat"><div class="admin-employee-stat-value">' + self.formatCurrency(empSales) + '</div><div class="admin-employee-stat-label">' + Nawa.I18n.t('total_sales') + '</div></div>';
+
+        var todayAtt = (self.state.attendance || []).find(function (a) { return a.employeeId === emp.id && !a.clockOut; });
+        if (todayAtt) {
+          var clockTime = new Date(todayAtt.clockIn).toLocaleTimeString(isAr ? 'ar-SA' : 'en-US', { hour: '2-digit', minute: '2-digit' });
+          html += '<div class="admin-employee-stat"><div class="admin-employee-stat-value" style="color:#22c55e;font-size:0.875rem;">' + clockTime + '</div><div class="admin-employee-stat-label" style="color:#22c55e;">' + Nawa.I18n.t('clock_in') + '</div></div>';
+        } else {
+          var lastAtt = (self.state.attendance || []).filter(function (a) { return a.employeeId === emp.id; }).sort(function (a, b) { return new Date(b.clockIn) - new Date(a.clockIn); })[0];
+          if (lastAtt && lastAtt.clockOut) {
+            var clockTime = new Date(lastAtt.clockIn).toLocaleTimeString(isAr ? 'ar-SA' : 'en-US', { hour: '2-digit', minute: '2-digit' });
+            html += '<div class="admin-employee-stat"><div class="admin-employee-stat-value" style="color:var(--text-secondary,#6B7280);font-size:0.875rem;">' + clockTime + '</div><div class="admin-employee-stat-label">' + Nawa.I18n.t('attendance_today') + '</div></div>';
+          }
+        }
+
         html += '</div>';
 
         html += '<div class="admin-employee-actions">';
@@ -752,10 +774,6 @@
       html += '<div id="employee-error" class="hidden" style="color:#ef4444;text-align:center;margin-bottom:12px;font-size:14px;"></div>';
       html += '<div class="form-group"><label>' + Nawa.I18n.t('employee_name') + ' *</label>';
       html += '<input type="text" class="form-input" id="emp-name" placeholder="' + Nawa.I18n.t('employee_name') + '"></div>';
-      html += '<div class="form-group"><label>' + Nawa.I18n.t('employee_name_en') + '</label>';
-      html += '<input type="text" class="form-input" id="emp-name-en" placeholder="' + Nawa.I18n.t('employee_name_en') + '" dir="ltr"></div>';
-      html += '<div class="form-group"><label>' + Nawa.I18n.t('employee_username') + ' *</label>';
-      html += '<input type="text" class="form-input" id="emp-username" placeholder="' + Nawa.I18n.t('employee_username') + '" dir="ltr" autocomplete="off"></div>';
       html += '<div class="form-group"><label>' + Nawa.I18n.t('employee_password') + ' *</label>';
       html += '<input type="password" class="form-input" id="emp-password" placeholder="' + Nawa.I18n.t('employee_password') + '" dir="ltr" autocomplete="off"></div>';
       html += '<div class="form-group"><label>' + Nawa.I18n.t('employee_role') + '</label>';
@@ -1080,7 +1098,7 @@
         html += '<div class="form-group"><label class="form-label">' + (isAr ? 'عدد الأشخاص' : 'Seats') + '</label>';
         html += '<input type="number" class="form-input" id="ds-m-seats" value="' + (item ? (item.seats || 4) : 4) + '" min="1" max="50"></div>';
         html += '<div class="form-group"><label class="form-label">' + (isAr ? 'الأرضية' : 'Floor') + '</label>';
-        html += '<select class="form-input" id="ds-m-floorId"><option value="">' + (isAr ? '-- بدون أرضية --' : '-- No Floor --') + '</option>';
+        html += '<select class="form-input" id="ds-m-floorId"><option value="">' + (isAr ? '-- اختر أرضية (إلزامي) --' : '-- Select Floor (Required) --') + '</option>';
         floors.forEach(function (f) {
           html += '<option value="' + f.id + '"' + (item && item.floorId === f.id ? ' selected' : '') + '>' + Admin._escapeHtml(f.name || '') + '</option>';
         });
@@ -1129,11 +1147,13 @@
               existing.categoryId = categoryId;
               existing.notes = notes.trim();
               await DB.update(S.PRODUCTS, existing.id, existing);
+              Nawa.Auth.apiFetch('/products/' + existing.id, { method: 'PUT', body: { name: existing.name, nameEn: existing.nameEn, price: existing.price, barcode: existing.barcode, categoryId: existing.categoryId, notes: existing.notes } }).catch(function(){});
             }
           } else {
             var newItem = { id: Date.now().toString(), name: name.trim(), nameEn: nameEn.trim(), price: price, barcode: barcode.trim(), categoryId: categoryId, notes: notes.trim(), active: true, createdAt: new Date().toISOString() };
             await DB.add(S.PRODUCTS, newItem);
             this.state.products.push(newItem);
+            Nawa.Auth.apiFetch('/products', { method: 'POST', body: { name: newItem.name, nameEn: newItem.nameEn, price: newItem.price, barcode: newItem.barcode, categoryId: newItem.categoryId, notes: newItem.notes } }).catch(function(){});
           }
         } else if (m.type === 'category') {
           var name = (document.getElementById('ds-m-name') || {}).value || '';
@@ -1141,11 +1161,12 @@
           if (!name.trim()) { if (errEl) { errEl.textContent = isAr ? 'اسم الفئة مطلوب' : 'Category name is required'; errEl.classList.remove('hidden'); } return; }
           if (m.editId) {
             var existing = this.state.categories.find(function (c) { return c.id === m.editId; });
-            if (existing) { existing.name = name.trim(); existing.sortOrder = sortOrder; await DB.update(S.CATEGORIES, existing.id, existing); }
+            if (existing) { existing.name = name.trim(); existing.sortOrder = sortOrder; await DB.update(S.CATEGORIES, existing.id, existing); Nawa.Auth.apiFetch('/categories/' + existing.id, { method: 'PUT', body: { name: existing.name, sortOrder: existing.sortOrder } }).catch(function(){}); }
           } else {
             var newItem = { id: Date.now().toString(), name: name.trim(), sortOrder: sortOrder, createdAt: new Date().toISOString() };
             await DB.add(S.CATEGORIES, newItem);
             this.state.categories.push(newItem);
+            Nawa.Auth.apiFetch('/categories', { method: 'POST', body: { name: newItem.name, sortOrder: newItem.sortOrder } }).catch(function(){});
           }
         } else if (m.type === 'table') {
           var number = parseInt((document.getElementById('ds-m-number') || {}).value) || 0;
@@ -1153,6 +1174,7 @@
           var seats = parseInt((document.getElementById('ds-m-seats') || {}).value) || 4;
           var floorId = (document.getElementById('ds-m-floorId') || {}).value || '';
           if (!number) { if (errEl) { errEl.textContent = isAr ? 'رقم الطاولة مطلوب' : 'Table number is required'; errEl.classList.remove('hidden'); } return; }
+          if (!floorId) { if (errEl) { errEl.textContent = isAr ? 'يجب اختيار الأرضية' : 'Floor is required'; errEl.classList.remove('hidden'); } return; }
           if (m.editId) {
             var existing = this.state.tables.find(function (t) { return t.id === m.editId; });
             if (existing) {
@@ -1161,11 +1183,13 @@
               existing.seats = seats;
               existing.floorId = floorId;
               await DB.update(S.TABLES, existing.id, existing);
+              Nawa.Auth.apiFetch('/tables/' + existing.id, { method: 'PUT', body: { number: existing.number, name: existing.name, seats: existing.seats, floorId: existing.floorId } }).catch(function(){});
             }
           } else {
             var newItem = { id: Date.now().toString(), number: number, name: name.trim(), seats: seats, floorId: floorId, status: 'free', createdAt: new Date().toISOString() };
             await DB.add(S.TABLES, newItem);
             this.state.tables.push(newItem);
+            Nawa.Auth.apiFetch('/tables', { method: 'POST', body: { number: newItem.number, name: newItem.name, seats: newItem.seats, floorId: newItem.floorId } }).catch(function(){});
           }
         } else if (m.type === 'floor') {
           var name = (document.getElementById('ds-m-name') || {}).value || '';
@@ -1173,11 +1197,12 @@
           if (!name.trim()) { if (errEl) { errEl.textContent = isAr ? 'اسم الأرضية مطلوب' : 'Floor name is required'; errEl.classList.remove('hidden'); } return; }
           if (m.editId) {
             var existing = this.state.floors.find(function (f) { return f.id === m.editId; });
-            if (existing) { existing.name = name.trim(); existing.sortOrder = sortOrder; await DB.update(S.FLOORS, existing.id, existing); }
+            if (existing) { existing.name = name.trim(); existing.sortOrder = sortOrder; await DB.update(S.FLOORS, existing.id, existing); Nawa.Auth.apiFetch('/floors/' + existing.id, { method: 'PUT', body: { name: existing.name, sortOrder: existing.sortOrder } }).catch(function(){}); }
           } else {
             var newItem = { id: Date.now().toString(), name: name.trim(), sortOrder: sortOrder, createdAt: new Date().toISOString() };
             await DB.add(S.FLOORS, newItem);
             this.state.floors.push(newItem);
+            Nawa.Auth.apiFetch('/floors', { method: 'POST', body: { name: newItem.name, sortOrder: newItem.sortOrder } }).catch(function(){});
           }
         }
 
@@ -1201,15 +1226,19 @@
         if (type === 'product') {
           await DB.hardDelete(S.PRODUCTS, id);
           this.state.products = this.state.products.filter(function (p) { return p.id !== id; });
+          Nawa.Auth.apiFetch('/products/' + id, { method: 'DELETE' }).catch(function(){});
         } else if (type === 'category') {
           await DB.hardDelete(S.CATEGORIES, id);
           this.state.categories = this.state.categories.filter(function (c) { return c.id !== id; });
+          Nawa.Auth.apiFetch('/categories/' + id, { method: 'DELETE' }).catch(function(){});
         } else if (type === 'table') {
           await DB.hardDelete(S.TABLES, id);
           this.state.tables = this.state.tables.filter(function (t) { return t.id !== id; });
+          Nawa.Auth.apiFetch('/tables/' + id, { method: 'DELETE' }).catch(function(){});
         } else if (type === 'floor') {
           await DB.hardDelete(S.FLOORS, id);
           this.state.floors = this.state.floors.filter(function (f) { return f.id !== id; });
+          Nawa.Auth.apiFetch('/floors/' + id, { method: 'DELETE' }).catch(function(){});
         }
         this.render();
         this.showNotification(isAr ? 'تم الحذف بنجاح' : 'Deleted successfully', 'success');
@@ -1432,15 +1461,13 @@
 
     async addEmployee() {
       var name = (document.getElementById('emp-name').value || '').trim();
-      var nameEn = (document.getElementById('emp-name-en').value || '').trim();
-      var username = (document.getElementById('emp-username').value || '').trim();
       var password = (document.getElementById('emp-password').value || '').trim();
       var role = document.getElementById('emp-role').value;
       var errorEl = document.getElementById('employee-error');
 
       if (errorEl) errorEl.classList.add('hidden');
 
-      if (!name || !username || !password) {
+      if (!name || !password) {
         if (errorEl) {
           errorEl.textContent = Nawa.I18n.t('required_field');
           errorEl.classList.remove('hidden');
@@ -1448,22 +1475,14 @@
         return;
       }
 
-      for (var i = 0; i < this.state.employees.length; i++) {
-        if (this.state.employees[i].username === username) {
-          if (errorEl) {
-            errorEl.textContent = Nawa.I18n.getLang() === 'ar' ? 'اسم المستخدم مستخدم بالفعل' : 'Username already taken';
-            errorEl.classList.remove('hidden');
-          }
-          return;
-        }
-      }
+      var username = name.replace(/\s+/g, '').toLowerCase() + '_' + Date.now().toString(36);
 
       try {
         var response = await Nawa.Auth.apiFetch('/employees', {
           method: 'POST',
           body: {
             name: name,
-            nameEn: nameEn || name,
+            nameEn: name,
             username: username,
             password: password,
             role: role || 'cashier'
@@ -1481,14 +1500,14 @@
           await window.Nawa.Audit.log('add', 'employees', saved.id, { name: name, username: username, role: role });
         }
 
-        this.showNotification(Nawa.I18n.t('employee_added'), 'success');
         var overlay = document.getElementById('employee-modal-overlay');
         if (overlay) overlay.classList.add('hidden');
         await this.loadData();
         this.render();
+        this.showNotification(Nawa.I18n.t('employee_added') + ': ' + name, 'success');
       } catch (e) {
         if (errorEl) {
-          errorEl.textContent = Nawa.I18n.t('employee_add_error');
+          errorEl.textContent = e.message || Nawa.I18n.t('employee_add_error');
           errorEl.classList.remove('hidden');
         }
       }
