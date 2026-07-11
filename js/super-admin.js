@@ -25,21 +25,42 @@ Nawa.SuperAdmin = {
 
   async loadData() {
     try {
-      const db = Nawa.DB;
-      const allRestaurants = await db.getAll('restaurants') || [];
-      this.state.restaurants = allRestaurants;
-      this.state.stats = {
-        total: allRestaurants.length,
-        active: allRestaurants.filter(r => r.status === 'active').length,
-        suspended: allRestaurants.filter(r => r.status === 'suspended').length,
-        inactive: allRestaurants.filter(r => r.status === 'inactive').length,
-        revenue: allRestaurants.reduce((sum, r) => sum + (r.revenue || 0), 0)
-      };
+      // Try API first
+      const session = JSON.parse(localStorage.getItem('nawa_session') || '{}');
+      if (session.token) {
+        const res = await fetch(Nawa.CONFIG.API_BASE + '/restaurants', {
+          headers: { 'Authorization': 'Bearer ' + session.token }
+        });
+        if (res.ok) {
+          const restaurants = await res.json();
+          this.state.restaurants = restaurants;
+          this._updateStats(restaurants);
+          return;
+        }
+      }
     } catch (e) {
-      console.warn('SuperAdmin loadData fallback:', e);
+      console.warn('API load failed, using IndexedDB:', e.message);
+    }
+
+    // Fallback to IndexedDB
+    try {
+      const allRestaurants = await Nawa.DB.getAll('restaurants') || [];
+      this.state.restaurants = allRestaurants;
+      this._updateStats(allRestaurants);
+    } catch (e) {
       this.state.restaurants = [];
       this.state.stats = { total: 0, active: 0, suspended: 0, inactive: 0, revenue: 0 };
     }
+  },
+
+  _updateStats(restaurants) {
+    this.state.stats = {
+      total: restaurants.length,
+      active: restaurants.filter(r => r.status === 'active').length,
+      suspended: restaurants.filter(r => r.status === 'suspended').length,
+      inactive: restaurants.filter(r => r.status === 'inactive').length,
+      revenue: restaurants.reduce((sum, r) => sum + (r.revenue || 0), 0)
+    };
   },
 
   render() {
@@ -68,11 +89,12 @@ Nawa.SuperAdmin = {
   },
 
   renderSidebar() {
+    const isAr = (Nawa.I18n && Nawa.I18n.getLang) ? Nawa.I18n.getLang() === 'ar' : true;
     const nav = [
-      { id: 'dashboard', label: 'لوحة التحكم', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>' },
-      { id: 'restaurants', label: 'المطاعم', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21V7l9-4 9 4v14"/><path d="M9 21V11h6v10"/></svg>' },
-      { id: 'plans', label: 'الباقات', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>' },
-      { id: 'weekly-sales', label: 'تقرير المبيعات الأسبوعي', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>' },
+      { id: 'dashboard', label: isAr ? 'لوحة التحكم' : 'Dashboard', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>' },
+      { id: 'restaurants', label: isAr ? 'المطاعم' : 'Restaurants', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21V7l9-4 9 4v14"/><path d="M9 21V11h6v10"/></svg>' },
+      { id: 'plans', label: isAr ? 'الباقات' : 'Plans', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>' },
+      { id: 'weekly-sales', label: isAr ? 'تقرير المبيعات الأسبوعي' : 'Weekly Sales', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>' },
     ];
 
     return `
@@ -80,21 +102,21 @@ Nawa.SuperAdmin = {
       <div class="sa-sidebar-header">
         <div class="sa-sidebar-logo">
           <svg width="36" height="36" viewBox="0 0 100 100" fill="none">
-            <circle cx="50" cy="50" r="12" fill="#0D9488"/>
-            <ellipse cx="50" cy="50" rx="35" ry="14" stroke="#0D9488" stroke-width="2.5" fill="none"/>
-            <ellipse cx="50" cy="50" rx="35" ry="14" stroke="#14B8A6" stroke-width="2.5" fill="none" transform="rotate(60 50 50)"/>
-            <ellipse cx="50" cy="50" rx="35" ry="14" stroke="#0F766E" stroke-width="2.5" fill="none" transform="rotate(120 50 50)"/>
-            <circle cx="85" cy="50" r="5" fill="#14B8A6"/>
-            <circle cx="32.5" cy="21.7" r="5" fill="#0D9488"/>
-            <circle cx="32.5" cy="78.3" r="5" fill="#0F766E"/>
+            <circle cx="50" cy="50" r="12" fill="#C9A84C"/>
+            <ellipse cx="50" cy="50" rx="35" ry="14" stroke="#C9A84C" stroke-width="2.5" fill="none"/>
+            <ellipse cx="50" cy="50" rx="35" ry="14" stroke="#D4B76A" stroke-width="2.5" fill="none" transform="rotate(60 50 50)"/>
+            <ellipse cx="50" cy="50" rx="35" ry="14" stroke="#B8933A" stroke-width="2.5" fill="none" transform="rotate(120 50 50)"/>
+            <circle cx="85" cy="50" r="5" fill="#D4B76A"/>
+            <circle cx="32.5" cy="21.7" r="5" fill="#C9A84C"/>
+            <circle cx="32.5" cy="78.3" r="5" fill="#B8933A"/>
           </svg>
           <span class="sa-sidebar-brand">نواة</span>
         </div>
-        <p class="sa-sidebar-subtitle">نظام نقاط البيع</p>
-        <span class="sa-sidebar-role">مدير النظام العام</span>
+        <p class="sa-sidebar-subtitle">${isAr ? 'نظام نقاط البيع' : 'POS System'}</p>
+        <span class="sa-sidebar-role">${isAr ? 'مدير النظام العام' : 'Super Admin'}</span>
       </div>
       <nav class="sa-nav">
-        <p class="sa-nav-label">القائمة</p>
+        <p class="sa-nav-label">${isAr ? 'القائمة' : 'Menu'}</p>
         ${nav.map(item => `
           <button class="sa-nav-item ${this.state.currentView === item.id ? 'active' : ''}" data-nav="${item.id}">
             ${item.icon}
@@ -102,27 +124,28 @@ Nawa.SuperAdmin = {
           </button>
         `).join('')}
         <div class="sa-nav-divider"></div>
-        <p class="sa-nav-label">النظام</p>
+        <p class="sa-nav-label">${isAr ? 'النظام' : 'System'}</p>
         <button class="sa-nav-item" data-nav="settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-          <span>الإعدادات</span>
+          <span>${isAr ? 'الإعدادات' : 'Settings'}</span>
         </button>
       </nav>
       <div class="sa-sidebar-footer">
         <button class="sa-sidebar-footer-btn" id="saLogout">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          <span>تسجيل الخروج</span>
+          <span>${isAr ? 'تسجيل الخروج' : 'Logout'}</span>
         </button>
       </div>
     </aside>`;
   },
 
   renderTopbar() {
+    const isAr = (Nawa.I18n && Nawa.I18n.getLang) ? Nawa.I18n.getLang() === 'ar' : true;
     const titles = {
-      dashboard: ['لوحة التحكم', 'نظرة عامة على النظام'],
-      restaurants: ['المطاعم', 'إدارة جميع المطاعم المشتركين'],
-      plans: ['الباقات', 'خطط الاشتراك المتاحة'],
-      'weekly-sales': ['تقرير المبيعات الأسبوعي', 'تحليل مبيعات جميع المطاعم'],
+      dashboard: [isAr ? 'لوحة التحكم' : 'Dashboard', isAr ? 'نظرة عامة على النظام' : 'System Overview'],
+      restaurants: [isAr ? 'المطاعم' : 'Restaurants', isAr ? 'إدارة جميع المطاعم المشتركين' : 'Manage all subscribed restaurants'],
+      plans: [isAr ? 'الباقات' : 'Plans', isAr ? 'خطط الاشتراك المتاحة' : 'Available subscription plans'],
+      'weekly-sales': [isAr ? 'تقرير المبيعات الأسبوعي' : 'Weekly Sales Report', isAr ? 'تحليل مبيعات جميع المطاعم' : 'Analyze sales across all restaurants'],
     };
     const [title, subtitle] = titles[this.state.currentView] || titles.dashboard;
 
@@ -137,7 +160,7 @@ Nawa.SuperAdmin = {
         ${this.state.currentView === 'restaurants' ?
           `<button class="sa-btn sa-btn-primary" id="saAddRestaurant">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            إضافة مطعم
+            ${isAr ? 'إضافة مطعم' : 'Add Restaurant'}
           </button>` : ''}
       </div>
     </div>`;
@@ -161,6 +184,7 @@ Nawa.SuperAdmin = {
 
   renderDashboard() {
     const s = this.state.stats;
+    const isAr = (Nawa.I18n && Nawa.I18n.getLang) ? Nawa.I18n.getLang() === 'ar' : true;
     return `
     <div class="sa-stats-grid">
       <div class="sa-stat-card">
@@ -168,7 +192,7 @@ Nawa.SuperAdmin = {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21V7l9-4 9 4v14"/><path d="M9 21V11h6v10"/></svg>
         </div>
         <div class="sa-stat-info">
-          <div class="sa-stat-label">إجمالي المطاعم</div>
+          <div class="sa-stat-label">${isAr ? 'إجمالي المطاعم' : 'Total Restaurants'}</div>
           <div class="sa-stat-value">${s.total}</div>
         </div>
       </div>
@@ -177,7 +201,7 @@ Nawa.SuperAdmin = {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
         </div>
         <div class="sa-stat-info">
-          <div class="sa-stat-label">نشطة</div>
+          <div class="sa-stat-label">${isAr ? 'نشطة' : 'Active'}</div>
           <div class="sa-stat-value">${s.active}</div>
         </div>
       </div>
@@ -186,7 +210,7 @@ Nawa.SuperAdmin = {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="10" y1="15" x2="10" y2="9"/><line x1="14" y1="15" x2="14" y2="9"/></svg>
         </div>
         <div class="sa-stat-info">
-          <div class="sa-stat-label">معلقة</div>
+          <div class="sa-stat-label">${isAr ? 'معلقة' : 'Suspended'}</div>
           <div class="sa-stat-value">${s.suspended}</div>
         </div>
       </div>
@@ -195,7 +219,7 @@ Nawa.SuperAdmin = {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
         </div>
         <div class="sa-stat-info">
-          <div class="sa-stat-label">إجمالي الإيرادات</div>
+          <div class="sa-stat-label">${isAr ? 'إجمالي الإيرادات' : 'Total Revenue'}</div>
           <div class="sa-stat-value">${this.formatCurrency(s.revenue)}</div>
         </div>
       </div>
@@ -204,7 +228,7 @@ Nawa.SuperAdmin = {
     <div style="display:grid;grid-template-columns:2fr 1fr;gap:24px;">
       <div class="sa-card">
         <div class="sa-card-header">
-          <h2>آخر النشاطات</h2>
+          <h2>${isAr ? 'آخر النشاطات' : 'Recent Activity'}</h2>
         </div>
         <div class="sa-card-body">
           ${this.renderRecentActivity()}
@@ -212,20 +236,20 @@ Nawa.SuperAdmin = {
       </div>
       <div class="sa-card">
         <div class="sa-card-header">
-          <h2>ملخص سريع</h2>
+          <h2>${isAr ? 'ملخص سريع' : 'Quick Summary'}</h2>
         </div>
         <div class="sa-card-body">
           <div style="display:flex;flex-direction:column;gap:14px;">
             <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--sa-border);">
-              <span style="color:var(--sa-text-muted);font-size:13px;">غير نشطة</span>
+              <span style="color:var(--sa-text-muted);font-size:13px;">${isAr ? 'غير نشطة' : 'Inactive'}</span>
               <span style="font-weight:700;">${s.inactive}</span>
             </div>
             <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--sa-border);">
-              <span style="color:var(--sa-text-muted);font-size:13px;">نسبة التنشيط</span>
+              <span style="color:var(--sa-text-muted);font-size:13px;">${isAr ? 'نسبة التنشيط' : 'Activation Rate'}</span>
               <span style="font-weight:700;color:var(--sa-success);">${s.total > 0 ? Math.round((s.active / s.total) * 100) : 0}%</span>
             </div>
             <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--sa-border);">
-              <span style="color:var(--sa-text-muted);font-size:13px;">متوسط الإيراد/مطعم</span>
+              <span style="color:var(--sa-text-muted);font-size:13px;">${isAr ? 'متوسط الإيراد/مطعم' : 'Avg Revenue/Restaurant'}</span>
               <span style="font-weight:700;">${this.formatCurrency(s.total > 0 ? s.revenue / s.total : 0)}</span>
             </div>
           </div>
@@ -254,19 +278,20 @@ Nawa.SuperAdmin = {
   },
 
   generateMockActivity() {
+    const isAr = (Nawa.I18n && Nawa.I18n.getLang) ? Nawa.I18n.getLang() === 'ar' : true;
     const restaurants = this.state.restaurants.slice(0, 5);
     const templates = [
-      { text: (r) => `تم تفعيل مطعم "${r.name}"`, color: 'green', time: 'منذ 5 دقائق' },
-      { text: (r) => `مطعم "${r.name}" قام بتحديث المنيو`, color: 'blue', time: 'منذ 15 دقيقة' },
-      { text: (r) => `تم تعليق اشتراك "${r.name}"`, color: 'yellow', time: 'منذ ساعة' },
-      { text: (r) => `مطعم "${r.name}" - تم إصدار فاتورة جديدة`, color: 'green', time: 'منذ 3 ساعات' },
-      { text: (r) => `إضافة مستخدم جديد لمطعم "${r.name}"`, color: 'blue', time: 'منذ يوم' },
+      { text: (r) => isAr ? `تم تفعيل مطعم "${r.name}"` : `Restaurant "${r.name}" activated`, color: 'green', time: isAr ? 'منذ 5 دقائق' : '5 min ago' },
+      { text: (r) => isAr ? `مطعم "${r.name}" قام بتحديث المنيو` : `Restaurant "${r.name}" updated menu`, color: 'blue', time: isAr ? 'منذ 15 دقيقة' : '15 min ago' },
+      { text: (r) => isAr ? `تم تعليق اشتراك "${r.name}"` : `Subscription suspended for "${r.name}"`, color: 'yellow', time: isAr ? 'منذ ساعة' : '1 hour ago' },
+      { text: (r) => isAr ? `مطعم "${r.name}" - تم إصدار فاتورة جديدة` : `Restaurant "${r.name}" - new invoice issued`, color: 'green', time: isAr ? 'منذ 3 ساعات' : '3 hours ago' },
+      { text: (r) => isAr ? `إضافة مستخدم جديد لمطعم "${r.name}"` : `New user added to restaurant "${r.name}"`, color: 'blue', time: isAr ? 'منذ يوم' : '1 day ago' },
     ];
 
     if (restaurants.length === 0) {
       return [
-        { text: 'مرحباً بك في لوحة التحكم العام', color: 'green', time: 'الآن' },
-        { text: 'يمكنك إضافة مطعم جديد للبدء', color: 'blue', time: 'الآن' },
+        { text: isAr ? 'مرحباً بك في لوحة التحكم العام' : 'Welcome to the super admin dashboard', color: 'green', time: isAr ? 'الآن' : 'Now' },
+        { text: isAr ? 'يمكنك إضافة مطعم جديد للبدء' : 'You can add a new restaurant to get started', color: 'blue', time: isAr ? 'الآن' : 'Now' },
       ];
     }
 
@@ -574,12 +599,13 @@ Nawa.SuperAdmin = {
 
   renderWeeklySales() {
     const report = this.state.salesReport;
+    const isAr = (Nawa.I18n && Nawa.I18n.getLang) ? Nawa.I18n.getLang() === 'ar' : true;
     if (!report) {
-      return `<div class="sa-card"><div class="sa-card-body"><div class="sa-empty"><h3>جاري تحميل البيانات...</h3></div></div></div>`;
+      return `<div class="sa-card"><div class="sa-card-body"><div class="sa-empty"><h3>${isAr ? 'جاري تحميل البيانات...' : 'Loading data...'}</h3></div></div></div>`;
     }
 
     if (!report.totalSales && report.totalSales !== 0) {
-      return `<div class="sa-card"><div class="sa-card-body"><div class="sa-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg><h3>لا توجد بيانات مبيعات لهذا الفترة</h3></div></div></div>`;
+      return `<div class="sa-card"><div class="sa-card-body"><div class="sa-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg><h3>${isAr ? 'لا توجد بيانات مبيعات لهذا الفترة' : 'No sales data for this period'}</h3></div></div></div>`;
     }
 
     const changePercent = report.previousTotal > 0
@@ -594,8 +620,8 @@ Nawa.SuperAdmin = {
 
     return `
     <div class="sa-report-period">
-      <button class="sa-btn sa-btn-outline ${this.state.reportWeeks === 1 ? 'active' : ''}" data-report-weeks="1">أسبوع واحد</button>
-      <button class="sa-btn sa-btn-outline ${this.state.reportWeeks === 2 ? 'active' : ''}" data-report-weeks="2">أسبوعين</button>
+      <button class="sa-btn sa-btn-outline ${this.state.reportWeeks === 1 ? 'active' : ''}" data-report-weeks="1">${isAr ? 'أسبوع واحد' : '1 Week'}</button>
+      <button class="sa-btn sa-btn-outline ${this.state.reportWeeks === 2 ? 'active' : ''}" data-report-weeks="2">${isAr ? 'أسبوعين' : '2 Weeks'}</button>
     </div>
 
     <div class="sa-stats-grid">
@@ -604,7 +630,7 @@ Nawa.SuperAdmin = {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
         </div>
         <div class="sa-stat-info">
-          <div class="sa-stat-label">إجمالي المبيعات</div>
+          <div class="sa-stat-label">${isAr ? 'إجمالي المبيعات' : 'Total Sales'}</div>
           <div class="sa-stat-value">${this.formatCurrency(report.totalSales)}</div>
         </div>
       </div>
@@ -613,7 +639,7 @@ Nawa.SuperAdmin = {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
         </div>
         <div class="sa-stat-info">
-          <div class="sa-stat-label">عدد الطلبات</div>
+          <div class="sa-stat-label">${isAr ? 'عدد الطلبات' : 'Order Count'}</div>
           <div class="sa-stat-value">${(report.orderCount || 0).toLocaleString()}</div>
         </div>
       </div>
@@ -622,7 +648,7 @@ Nawa.SuperAdmin = {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10"/><path d="M18 20V4"/></svg>
         </div>
         <div class="sa-stat-info">
-          <div class="sa-stat-label">متوسط قيمة الطلب</div>
+          <div class="sa-stat-label">${isAr ? 'متوسط قيمة الطلب' : 'Avg Order Value'}</div>
           <div class="sa-stat-value">${this.formatCurrency(report.orderCount > 0 ? report.totalSales / report.orderCount : 0)}</div>
         </div>
       </div>
@@ -631,7 +657,7 @@ Nawa.SuperAdmin = {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg>
         </div>
         <div class="sa-stat-info">
-          <div class="sa-stat-label">نسبة التغيير</div>
+          <div class="sa-stat-label">${isAr ? 'نسبة التغيير' : 'Change Rate'}</div>
           <div class="sa-stat-value">${changePercent >= 0 ? '+' : ''}${changePercent}%</div>
         </div>
       </div>
@@ -639,7 +665,7 @@ Nawa.SuperAdmin = {
 
     <div class="sa-card sa-chart-container" style="margin-bottom:24px;">
       <div class="sa-card-header">
-        <h2>المبيعات اليومية</h2>
+        <h2>${isAr ? 'المبيعات اليومية' : 'Daily Sales'}</h2>
         <span style="font-size:12px;color:var(--sa-text-muted);">${report.dateRange || ''}</span>
       </div>
       <div class="sa-card-body">
@@ -654,14 +680,14 @@ Nawa.SuperAdmin = {
               </div>
             `).join('')}
           </div>
-        ` : '<div class="sa-empty"><h3>لا توجد بيانات يومية</h3></div>'}
+        ` : `<div class="sa-empty"><h3>${isAr ? 'لا توجد بيانات يومية' : 'No daily data'}</h3></div>`}
       </div>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
       <div class="sa-card">
         <div class="sa-card-header">
-          <h2>أكثر المنتجات مبيعاً</h2>
+          <h2>${isAr ? 'أكثر المنتجات مبيعاً' : 'Top Selling Products'}</h2>
         </div>
         <div class="sa-card-body" style="padding:0;">
           ${topProducts.length > 0 ? `
@@ -670,9 +696,9 @@ Nawa.SuperAdmin = {
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>المنتج</th>
-                    <th>الكمية المباعة</th>
-                    <th>إجمالي المبيعات</th>
+                    <th>${isAr ? 'المنتج' : 'Product'}</th>
+                    <th>${isAr ? 'الكمية المباعة' : 'Qty Sold'}</th>
+                    <th>${isAr ? 'إجمالي المبيعات' : 'Total Sales'}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -687,13 +713,13 @@ Nawa.SuperAdmin = {
                 </tbody>
               </table>
             </div>
-          ` : '<div class="sa-empty"><h3>لا توجد بيانات منتجات</h3></div>'}
+          ` : `<div class="sa-empty"><h3>${isAr ? 'لا توجد بيانات منتجات' : 'No product data'}</h3></div>`}
         </div>
       </div>
 
       <div class="sa-card">
         <div class="sa-card-header">
-          <h2>مبيعات المطاعم</h2>
+          <h2>${isAr ? 'مبيعات المطاعم' : 'Restaurant Sales'}</h2>
         </div>
         <div class="sa-card-body" style="padding:0;">
           ${restaurantSales.length > 0 ? `
@@ -702,9 +728,9 @@ Nawa.SuperAdmin = {
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>المطعم</th>
-                    <th>عدد الطلبات</th>
-                    <th>إجمالي المبيعات</th>
+                    <th>${isAr ? 'المطعم' : 'Restaurant'}</th>
+                    <th>${isAr ? 'عدد الطلبات' : 'Orders'}</th>
+                    <th>${isAr ? 'إجمالي المبيعات' : 'Total Sales'}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -719,7 +745,7 @@ Nawa.SuperAdmin = {
                 </tbody>
               </table>
             </div>
-          ` : '<div class="sa-empty"><h3>لا توجد بيانات مطاعم</h3></div>'}
+          ` : `<div class="sa-empty"><h3>${isAr ? 'لا توجد بيانات مطاعم' : 'No restaurant data'}</h3></div>`}
         </div>
       </div>
     </div>`;
@@ -1090,11 +1116,13 @@ Nawa.SuperAdmin = {
   },
 
   formatCurrency(amount) {
-    return new Intl.NumberFormat('ar-SA', {
+    const isAr = (Nawa.I18n && Nawa.I18n.getLang) ? Nawa.I18n.getLang() === 'ar' : true;
+    const currency = isAr ? 'ر.س' : 'SAR';
+    return new Intl.NumberFormat(isAr ? 'ar-SA' : 'en-US', {
       style: 'decimal',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
-    }).format(amount || 0) + ' ر.س';
+    }).format(amount || 0) + ' ' + currency;
   },
 
   showNotification(message, type = 'info') {

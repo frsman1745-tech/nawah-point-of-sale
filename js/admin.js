@@ -85,7 +85,9 @@
     },
 
     formatCurrency(amount) {
-      return Number(amount || 0).toLocaleString('ar-SA') + ' ر.س';
+      var isAr = (window.Nawa.I18n && window.Nawa.I18n.getLang) ? window.Nawa.I18n.getLang() === 'ar' : true;
+      var currency = isAr ? 'ر.س' : 'SAR';
+      return Number(amount || 0).toLocaleString(isAr ? 'ar-SA' : 'en-US') + ' ' + currency;
     },
 
     formatNumber(n) {
@@ -103,7 +105,8 @@
     formatDate(iso) {
       if (!iso) return '--';
       var d = new Date(iso);
-      return d.toLocaleDateString('ar-SA');
+      var isAr = (window.Nawa.I18n && window.Nawa.I18n.getLang) ? window.Nawa.I18n.getLang() === 'ar' : true;
+      return d.toLocaleDateString(isAr ? 'ar-SA' : 'en-US');
     },
 
     getArabicAction(action) {
@@ -178,11 +181,12 @@
 
     renderSidebar() {
       var s = this.state;
+      var isAr = (window.Nawa.I18n && window.Nawa.I18n.getLang) ? window.Nawa.I18n.getLang() === 'ar' : true;
       var tabs = [
-        { id: 'dashboard', label: 'لوحة التحكم', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>' },
-        { id: 'audit', label: 'سجل التعديلات', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>' },
-        { id: 'employees', label: 'الموظفين', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>' },
-        { id: 'settings', label: 'الإعدادات', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>' }
+        { id: 'dashboard', label: isAr ? 'لوحة التحكم' : 'Dashboard', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>' },
+        { id: 'audit', label: isAr ? 'سجل التعديلات' : 'Audit Log', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>' },
+        { id: 'employees', label: isAr ? 'الموظفين' : 'Employees', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>' },
+        { id: 'settings', label: isAr ? 'الإعدادات' : 'Settings', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>' }
       ];
 
       var navLinks = '';
@@ -196,18 +200,18 @@
       html += '<div class="admin-sidebar-brand-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>';
       html += '<div class="admin-sidebar-brand-text">';
       html += '<div class="admin-sidebar-brand-name">' + CFG.APP_NAME + '</div>';
-      html += '<div class="admin-sidebar-brand-sub">لوحة التحكم</div>';
+      html += '<div class="admin-sidebar-brand-sub">' + (isAr ? 'لوحة التحكم' : 'Dashboard') + '</div>';
       html += '</div></div>';
 
       html += '<div class="admin-sidebar-nav">';
-      html += '<div class="admin-sidebar-section-title">القائمة الرئيسية</div>';
+      html += '<div class="admin-sidebar-section-title">' + (isAr ? 'القائمة الرئيسية' : 'Main Menu') + '</div>';
       html += navLinks;
       html += '</div>';
 
       html += '<div class="admin-sidebar-footer">';
       html += '<button class="admin-sidebar-back" id="admin-back-pos">';
       html += '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>';
-      html += '<span>الرجوع للنقطة</span>';
+      html += '<span>' + (isAr ? 'الرجوع للنقطة' : 'Back to POS') + '</span>';
       html += '</button>';
       html += '</div>';
       html += '</nav>';
@@ -224,13 +228,14 @@
 
     renderTopbar() {
       var titles = {
-        dashboard: 'لوحة التحكم',
-        audit: 'سجل التعديلات',
-        employees: 'الموظفين',
-        settings: 'الإعدادات'
+        dashboard: (window.Nawa.I18n.getLang() === 'ar') ? 'لوحة التحكم' : 'Dashboard',
+        audit: (window.Nawa.I18n.getLang() === 'ar') ? 'سجل التعديلات' : 'Audit Log',
+        employees: (window.Nawa.I18n.getLang() === 'ar') ? 'الموظفين' : 'Employees',
+        settings: (window.Nawa.I18n.getLang() === 'ar') ? 'الإعدادات' : 'Settings'
       };
       var now = new Date();
-      var dateStr = now.toLocaleDateString('ar-SA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      var isAr = (window.Nawa.I18n && window.Nawa.I18n.getLang) ? window.Nawa.I18n.getLang() === 'ar' : true;
+      var dateStr = now.toLocaleDateString(isAr ? 'ar-SA' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
       var html = '<div class="admin-topbar">';
       html += '<h1 class="admin-topbar-title" data-print-date="' + dateStr + '">' + (titles[this.state.activeTab] || '') + '</h1>';
@@ -250,13 +255,14 @@
 
     renderStats() {
       var st = this.state.stats;
+      var isAr = (window.Nawa.I18n && window.Nawa.I18n.getLang) ? window.Nawa.I18n.getLang() === 'ar' : true;
       var cards = [
-        { value: this.formatCurrency(st.totalSales), label: 'إجمالي المبيعات', color: 'color-sales', icon: 'icon-sales', iconSvg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>' },
-        { value: this.formatNumber(st.totalOrders), label: 'إجمالي الطلبات', color: 'color-orders', icon: 'icon-orders', iconSvg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>' },
-        { value: this.formatCurrency(st.avgOrder), label: 'متوسط قيمة الطلب', color: 'color-avg', icon: 'icon-avg', iconSvg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>' },
-        { value: this.formatNumber(st.activeTables), label: 'الطاولات المشغولة', color: 'color-tables', icon: 'icon-tables', iconSvg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="4" rx="1"/><path d="M4 11v8"/><path d="M20 11v8"/><path d="M9 4v3"/><path d="M15 4v3"/></svg>' },
-        { value: this.formatNumber(this.state.employees.filter(function (e) { return e.isActive; }).length), label: 'الموظفين النشطين', color: 'color-employees', icon: 'icon-employees', iconSvg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>' },
-        { value: this.formatNumber(st.topProducts.length > 0 ? st.topProducts[0].count : 0), label: 'أكثر منتج مبيعاً', color: 'color-products', icon: 'icon-products', iconSvg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>' }
+        { value: this.formatCurrency(st.totalSales), label: isAr ? 'إجمالي المبيعات' : 'Total Sales', color: 'color-sales', icon: 'icon-sales', iconSvg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>' },
+        { value: this.formatNumber(st.totalOrders), label: isAr ? 'إجمالي الطلبات' : 'Total Orders', color: 'color-orders', icon: 'icon-orders', iconSvg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>' },
+        { value: this.formatCurrency(st.avgOrder), label: isAr ? 'متوسط قيمة الطلب' : 'Avg Order Value', color: 'color-avg', icon: 'icon-avg', iconSvg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>' },
+        { value: this.formatNumber(st.activeTables), label: isAr ? 'الطاولات المشغولة' : 'Active Tables', color: 'color-tables', icon: 'icon-tables', iconSvg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="4" rx="1"/><path d="M4 11v8"/><path d="M20 11v8"/><path d="M9 4v3"/><path d="M15 4v3"/></svg>' },
+        { value: this.formatNumber(this.state.employees.filter(function (e) { return e.isActive; }).length), label: isAr ? 'الموظفين النشطين' : 'Active Employees', color: 'color-employees', icon: 'icon-employees', iconSvg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>' },
+        { value: this.formatNumber(st.topProducts.length > 0 ? st.topProducts[0].count : 0), label: isAr ? 'أكثر منتج مبيعاً' : 'Top Selling Product', color: 'color-products', icon: 'icon-products', iconSvg: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>' }
       ];
 
       var html = '<div class="admin-stats-grid">';
@@ -283,6 +289,7 @@
     },
 
     renderSalesChart() {
+      var isAr = (window.Nawa.I18n && window.Nawa.I18n.getLang) ? window.Nawa.I18n.getLang() === 'ar' : true;
       var orders = this.state.orders.filter(function (o) { return o.status === 'paid' || o.status === 'completed'; });
       var days = [];
       var dayNames = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
@@ -307,7 +314,7 @@
       var maxVal = Math.max.apply(null, days.map(function (d) { return d.total; }));
       if (maxVal === 0) maxVal = 100;
 
-      var html = '<div class="admin-chart-header"><span class="admin-chart-title">المبيعات خلال آخر 7 أيام</span></div>';
+      var html = '<div class="admin-chart-header"><span class="admin-chart-title">' + (isAr ? 'المبيعات خلال آخر 7 أيام' : 'Sales - Last 7 Days') + '</span></div>';
       html += '<div class="admin-chart-body">';
       html += '<div class="admin-bar-chart">';
 
@@ -333,6 +340,7 @@
     },
 
     renderOrdersByHour() {
+      var isAr = (window.Nawa.I18n && window.Nawa.I18n.getLang) ? window.Nawa.I18n.getLang() === 'ar' : true;
       var orders = this.state.orders;
       var hours = [];
       for (var h = 8; h <= 23; h++) {
@@ -352,7 +360,7 @@
       var maxCount = Math.max.apply(null, hours.map(function (h) { return h.count; }));
       if (maxCount === 0) maxCount = 10;
 
-      var html = '<div class="admin-chart-header"><span class="admin-chart-title">الطلبات حسب الساعة</span></div>';
+      var html = '<div class="admin-chart-header"><span class="admin-chart-title">' + (isAr ? 'الطلبات حسب الساعة' : 'Orders by Hour') + '</span></div>';
       html += '<div class="admin-chart-body">';
       html += '<div class="admin-bar-chart">';
 
@@ -368,7 +376,7 @@
         var pct = Math.max((h.count / maxCount) * 100, 2);
         html += '<div class="admin-bar-col">';
         html += '<div class="admin-bar" style="height:' + pct + '%;background:linear-gradient(to top,#3B82F6,#60A5FA)">';
-        html += '<span class="admin-bar-tooltip">' + h.count + ' طلب</span>';
+        html += '<span class="admin-bar-tooltip">' + h.count + ' ' + (isAr ? 'طلب' : 'orders') + '</span>';
         html += '</div>';
         html += '<span class="admin-bar-label">' + h.label + '</span>';
         html += '</div>';
@@ -378,14 +386,15 @@
     },
 
     renderTopProducts() {
+      var isAr = (window.Nawa.I18n && window.Nawa.I18n.getLang) ? window.Nawa.I18n.getLang() === 'ar' : true;
       var topProducts = this.state.stats.topProducts;
       var maxCount = topProducts.length > 0 ? topProducts[0].count : 1;
 
-      var html = '<div class="admin-chart-header"><span class="admin-chart-title">أكثر المنتجات مبيعاً</span></div>';
+      var html = '<div class="admin-chart-header"><span class="admin-chart-title">' + (isAr ? 'أكثر المنتجات مبيعاً' : 'Top Selling Products') + '</span></div>';
       html += '<div class="admin-chart-body">';
 
       if (topProducts.length === 0) {
-        html += '<div class="admin-empty"><div class="admin-empty-title">لا توجد بيانات</div></div>';
+        html += '<div class="admin-empty"><div class="admin-empty-title">' + (isAr ? 'لا توجد بيانات' : 'No data') + '</div></div>';
       } else {
         html += '<div class="admin-hbar-chart">';
         topProducts.forEach(function (p) {
@@ -405,6 +414,7 @@
     },
 
     renderPaymentDist() {
+      var isAr = (window.Nawa.I18n && window.Nawa.I18n.getLang) ? window.Nawa.I18n.getLang() === 'ar' : true;
       var orders = this.state.orders.filter(function (o) { return o.status === 'paid' || o.status === 'completed'; });
       var cashCount = 0;
       var cardCount = 0;
@@ -421,19 +431,19 @@
       var cashPct = Math.round((cashCount / total) * 100);
       var cardPct = 100 - cashPct;
 
-      var html = '<div class="admin-chart-header"><span class="admin-chart-title">طرق الدفع</span></div>';
+      var html = '<div class="admin-chart-header"><span class="admin-chart-title">' + (isAr ? 'طرق الدفع' : 'Payment Methods') + '</span></div>';
       html += '<div class="admin-chart-body">';
       html += '<div class="admin-payment-dist">';
 
       html += '<div class="admin-payment-row">';
       html += '<div class="admin-payment-icon cash"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>';
-      html += '<div class="admin-payment-info"><div class="admin-payment-name">نقدي</div>';
+      html += '<div class="admin-payment-info"><div class="admin-payment-name">' + (isAr ? 'نقدي' : 'Cash') + '</div>';
       html += '<div class="admin-payment-bar"><div class="admin-payment-bar-fill cash" style="width:' + cashPct + '%"></div></div>';
       html += '</div><span class="admin-payment-pct">' + cashPct + '%</span></div>';
 
       html += '<div class="admin-payment-row">';
       html += '<div class="admin-payment-icon card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div>';
-      html += '<div class="admin-payment-info"><div class="admin-payment-name">بطاقة ائتمان</div>';
+      html += '<div class="admin-payment-info"><div class="admin-payment-name">' + (isAr ? 'بطاقة ائتمان' : 'Credit Card') + '</div>';
       html += '<div class="admin-payment-bar"><div class="admin-payment-bar-fill card" style="width:' + cardPct + '%"></div></div>';
       html += '</div><span class="admin-payment-pct">' + cardPct + '%</span></div>';
 
@@ -442,19 +452,20 @@
     },
 
     renderRecentOrders() {
+      var isAr = (window.Nawa.I18n && window.Nawa.I18n.getLang) ? window.Nawa.I18n.getLang() === 'ar' : true;
       var recent = this.state.orders.slice().sort(function (a, b) {
         return (b.createdAt || '').localeCompare(a.createdAt || '');
       }).slice(0, 10);
 
       var html = '<div class="card">';
-      html += '<div class="card-header"><span style="font-weight:700">آخر الطلبات</span></div>';
+      html += '<div class="card-header"><span style="font-weight:700">' + (isAr ? 'آخر الطلبات' : 'Recent Orders') + '</span></div>';
       html += '<div class="table-wrapper">';
 
       if (recent.length === 0) {
-        html += '<div class="admin-empty"><div class="admin-empty-title">لا توجد طلبات بعد</div><div class="admin-empty-desc">ستظهر الطلبات هنا بعد إتمامها</div></div>';
+        html += '<div class="admin-empty"><div class="admin-empty-title">' + (isAr ? 'لا توجد طلبات بعد' : 'No orders yet') + '</div><div class="admin-empty-desc">' + (isAr ? 'ستظهر الطلبات هنا بعد إتمامها' : 'Orders will appear here once completed') + '</div></div>';
       } else {
         html += '<table class="admin-recent-table"><thead><tr>';
-        html += '<th>#</th><th>الوقت</th><th>الطاولة</th><th>عدد الأصناف</th><th>الإجمالي</th><th>الموظف</th><th>الحالة</th>';
+        html += '<th>#</th><th>' + (isAr ? 'الوقت' : 'Time') + '</th><th>' + (isAr ? 'الطاولة' : 'Table') + '</th><th>' + (isAr ? 'عدد الأصناف' : 'Items') + '</th><th>' + (isAr ? 'الإجمالي' : 'Total') + '</th><th>' + (isAr ? 'الموظف' : 'Employee') + '</th><th>' + (isAr ? 'الحالة' : 'Status') + '</th>';
         html += '</tr></thead><tbody>';
 
         recent.forEach(function (order, i) {
@@ -468,7 +479,7 @@
             }
           }
           var statusClass = order.status === 'paid' || order.status === 'completed' ? 'paid' : (order.status === 'cancelled' ? 'cancelled' : 'pending');
-          var statusLabel = order.status === 'paid' || order.status === 'completed' ? 'مدفوع' : (order.status === 'cancelled' ? 'ملغي' : 'معلق');
+          var statusLabel = order.status === 'paid' || order.status === 'completed' ? (isAr ? 'مدفوع' : 'Paid') : (order.status === 'cancelled' ? (isAr ? 'ملغي' : 'Cancelled') : (isAr ? 'معلق' : 'Pending'));
 
           html += '<tr>';
           html += '<td><span class="admin-order-clickable" data-order-id="' + order.id + '">' + order.id.slice(-6).toUpperCase() + '</span></td>';

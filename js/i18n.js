@@ -15,6 +15,11 @@
     password: { ar: 'كلمة المرور', en: 'Password' },
     login_button: { ar: 'دخول', en: 'Sign In' },
     login_error: { ar: 'اسم المستخدم أو كلمة المرور غير صحيحة', en: 'Invalid username or password' },
+    login_error_fields: { ar: 'يرجى إدخال اسم المستخدم وكلمة المرور', en: 'Please enter username and password' },
+    login_error_server: { ar: 'حدث خطأ أثناء تسجيل الدخول', en: 'An error occurred during login' },
+    login_tagline: { ar: 'نظام نقطة البيع للمطاعم', en: 'Restaurant Point of Sale System' },
+    enter_username: { ar: 'أدخل اسم المستخدم', en: 'Enter username' },
+    enter_password: { ar: 'أدخل كلمة المرور', en: 'Enter password' },
     session_expired: { ar: 'انتهت صلاحية الجلسة', en: 'Session expired' },
     welcome: { ar: 'مرحباً', en: 'Welcome' },
     logged_in_as: { ar: 'تم الدخول كـ', en: 'Logged in as' },
@@ -253,6 +258,8 @@
     document.documentElement.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
     document.documentElement.setAttribute('lang', lang);
     document.body.style.fontFamily = lang === 'ar' ? 'Tajawal, sans-serif' : 'Inter, sans-serif';
+    // Update page title
+    document.title = lang === 'ar' ? 'نواة POS - نظام نقطة البيع' : 'Nawa POS - Point of Sale';
   }
 
   var I18n = {

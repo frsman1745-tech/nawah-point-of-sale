@@ -58,7 +58,7 @@ body[dir="ltr"] .admin-sidebar {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--navy);
   flex-shrink: 0;
 }
 
@@ -1555,7 +1555,7 @@ body[dir="ltr"] .admin-mobile-toggle {
   }
 
   .admin-bar {
-    background: #0D9488 !important;
+    background: #C9A84C !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }

@@ -4,8 +4,8 @@
 
 :root {
   --sa-sidebar-w: 260px;
-  --sa-sidebar-bg: #0f172a;
-  --sa-sidebar-hover: #1e293b;
+  --sa-sidebar-bg: #0E1C3D;
+  --sa-sidebar-hover: #162B55;
   --sa-sidebar-active: var(--primary);
 }
 

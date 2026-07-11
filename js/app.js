@@ -46,7 +46,29 @@ Nawa.Sync = {
     this._updateIndicators();
 
     try {
-      await new Promise(r => setTimeout(r, 800 + Math.random() * 700));
+      // Sync pending orders to server
+      const pendingItems = await Nawa.DB.getAll(Nawa.CONFIG.STORES.PENDING_SYNC) || [];
+      const token = Nawa.Auth.getToken ? Nawa.Auth.getToken() : null;
+
+      for (const item of pendingItems) {
+        try {
+          const headers = { 'Content-Type': 'application/json' };
+          if (token) headers['Authorization'] = 'Bearer ' + token;
+
+          const res = await fetch(Nawa.CONFIG.API_BASE + (item.endpoint || '/orders'), {
+            method: item.method || 'POST',
+            headers: headers,
+            body: JSON.stringify(item.data)
+          });
+
+          if (res.ok) {
+            await Nawa.DB.hardDelete(Nawa.CONFIG.STORES.PENDING_SYNC, item.id);
+          }
+        } catch (e) {
+          // Keep item for next sync attempt
+        }
+      }
+
       this._pendingChanges = 0;
       this._status = 'online';
       this._updateIndicators();
@@ -67,7 +89,24 @@ Nawa.Sync = {
     this._updateIndicators();
 
     try {
-      await new Promise(r => setTimeout(r, 600 + Math.random() * 500));
+      const token = Nawa.Auth.getToken ? Nawa.Auth.getToken() : null;
+      if (!token) {
+        this._status = 'online';
+        this._updateIndicators();
+        return;
+      }
+
+      const headers = { 'Authorization': 'Bearer ' + token };
+
+      // Pull orders
+      const ordersRes = await fetch(Nawa.CONFIG.API_BASE + '/orders', { headers });
+      if (ordersRes.ok) {
+        const orders = await ordersRes.json();
+        for (const order of orders) {
+          await Nawa.DB.add(Nawa.CONFIG.STORES.ORDERS, order);
+        }
+      }
+
       this._status = 'online';
       this._updateIndicators();
     } catch (e) {
@@ -86,24 +125,27 @@ Nawa.Sync = {
   },
 
   _updateIndicators() {
+    const isAr = (Nawa.I18n && Nawa.I18n.getLang) ? Nawa.I18n.getLang() === 'ar' : true;
+    const labels = {
+      online: isAr ? 'متصل' : 'Online',
+      offline: isAr ? 'غير متصل' : 'Offline',
+      syncing: isAr ? 'جاري المزامنة' : 'Syncing...'
+    };
+
     document.querySelectorAll('.sa-sync-status').forEach(el => {
       const status = this.getStatus();
       el.className = `sa-sync-status ${status}`;
-      const labels = { online: 'متصل', offline: 'غير متصل', syncing: 'جاري المزامنة' };
-      const dot = el.querySelector('.sa-sync-dot');
-      if (dot) dot.insertAdjacentText('afterend', '');
       el.textContent = '';
       const span = document.createElement('span');
       span.className = 'sa-sync-dot';
       el.appendChild(span);
-      el.appendChild(document.createTextNode(' ' + (labels[status] || 'متصل')));
+      el.appendChild(document.createTextNode(' ' + (labels[status] || labels.online)));
     });
 
     document.querySelectorAll('.sync-indicator').forEach(el => {
       const status = this.getStatus();
       el.className = `sync-indicator ${status}`;
-      const labels = { online: 'متصل', offline: 'غير متصل', syncing: 'مزامنة...' };
-      el.textContent = labels[status] || 'متصل';
+      el.textContent = labels[status] || labels.online;
     });
   },
 
@@ -208,7 +250,8 @@ const App = {
 
         if (!username || !password) {
           if (errorEl) {
-            errorEl.textContent = 'يرجى إدخال اسم المستخدم وكلمة المرور';
+            const msg = (Nawa.I18n.getLang() === 'ar') ? 'يرجى إدخال اسم المستخدم وكلمة المرور' : 'Please enter username and password';
+            errorEl.textContent = msg;
             errorEl.classList.remove('hidden');
           }
           return;
@@ -220,7 +263,7 @@ const App = {
           if (Nawa.Auth && Nawa.Auth.login) {
             user = await Nawa.Auth.login(username, password);
           } else {
-            user = this._fallbackLogin(username, password);
+            user = await this._fallbackLogin(username, password);
           }
 
           if (user && user.role) {
@@ -242,15 +285,17 @@ const App = {
                 window.location.hash = '#/login';
             }
           } else {
-            if (errorEl) {
-              errorEl.textContent = 'اسم المستخدم أو كلمة المرور غير صحيحة';
-              errorEl.classList.remove('hidden');
-            }
+          if (errorEl) {
+            const msg = (Nawa.I18n.getLang() === 'ar') ? 'اسم المستخدم أو كلمة المرور غير صحيحة' : 'Invalid username or password';
+            errorEl.textContent = msg;
+            errorEl.classList.remove('hidden');
+          }
           }
         } catch (err) {
           console.error('Login error:', err);
           if (errorEl) {
-            errorEl.textContent = 'حدث خطأ أثناء تسجيل الدخول';
+            const msg = (Nawa.I18n.getLang() === 'ar') ? 'حدث خطأ أثناء تسجيل الدخول' : 'An error occurred during login';
+            errorEl.textContent = msg;
             errorEl.classList.remove('hidden');
           }
         }
@@ -262,26 +307,38 @@ const App = {
       langBtn.addEventListener('click', () => {
         if (Nawa.I18n && Nawa.I18n.toggle) {
           Nawa.I18n.toggle();
+          // Re-render the login page with new language
           this.showLogin();
         }
       });
     }
+
+    // Set focus on username input
+    const usernameInput = document.getElementById('username');
+    if (usernameInput) setTimeout(() => usernameInput.focus(), 100);
   },
 
   _fallbackLogin(username, password) {
-    const users = {
-      admin: { id: 'admin', username: 'admin', password: 'admin123', role: 'admin', name: 'مدير المطعم' },
-      cashier: { id: 'cashier', username: 'cashier', password: 'cashier123', role: 'cashier', name: 'كاشير' },
-      superadmin: { id: 'superadmin', username: 'superadmin', password: 'super123', role: 'super_admin', name: 'مدير النظام العام' },
-    };
-
-    const user = users[username.toLowerCase()];
-    if (user && user.password === password) {
-      const session = { id: user.id, username: user.username, role: user.role, name: user.name, loginTime: new Date().toISOString() };
-      try { localStorage.setItem('nawa_session', JSON.stringify(session)); } catch (e) {}
-      return user;
-    }
-    return null;
+    // Fallback: try IndexedDB login directly
+    return Nawa.DB.query(Nawa.CONFIG.STORES.EMPLOYEES, 'username', username)
+      .then(function (results) {
+        var user = results.find(function (u) {
+          return u.isActive && !u.deletedAt;
+        });
+        if (!user) return null;
+        if (user.password !== password) return null;
+        var session = {
+          id: user.id,
+          username: user.username,
+          role: user.role,
+          name: user.name,
+          nameEn: user.nameEn,
+          loginTime: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString()
+        };
+        try { localStorage.setItem('nawa_session', JSON.stringify(session)); } catch (e) {}
+        return session;
+      });
   },
 
   async showPOS() {
@@ -364,8 +421,13 @@ const App = {
   },
 
   renderLoginPage() {
+    const t = (Nawa.I18n && Nawa.I18n.t) ? Nawa.I18n.t.bind(Nawa.I18n) : (k) => k;
     const currentLang = (Nawa.I18n && Nawa.I18n.getLang) ? Nawa.I18n.getLang() : 'ar';
-    const langLabel = currentLang === 'ar' ? 'EN |عربي' : 'عربي |EN';
+    const langLabel = currentLang === 'ar' ? 'English' : 'العربية';
+    const langTitle = currentLang === 'ar' ? 'Switch to English' : 'التبديل إلى العربية';
+    const tagline = currentLang === 'ar' ? 'نظام نقطة البيع للمطاعم' : 'Restaurant Point of Sale System';
+    const placeholderUser = currentLang === 'ar' ? 'أدخل اسم المستخدم' : 'Enter username';
+    const placeholderPass = currentLang === 'ar' ? 'أدخل كلمة المرور' : 'Enter password';
 
     return `
     <div class="login-page">
@@ -373,21 +435,21 @@ const App = {
         <div class="login-logo">
           ${this.getLogo(80)}
         </div>
-        <h1 class="login-company">نواة</h1>
-        <p class="login-tagline">نظام نقطة البيع للمطاعم</p>
+        <h1 class="login-company">${t('app_name').replace(' POS', '')}</h1>
+        <p class="login-tagline">${tagline}</p>
         <form id="loginForm" class="login-form">
           <div class="form-group">
-            <label>اسم المستخدم</label>
-            <input type="text" id="username" class="form-input" placeholder="أدخل اسم المستخدم" autocomplete="username">
+            <label>${t('username')}</label>
+            <input type="text" id="username" class="form-input" placeholder="${placeholderUser}" autocomplete="username" dir="ltr">
           </div>
           <div class="form-group">
-            <label>كلمة المرور</label>
-            <input type="password" id="password" class="form-input" placeholder="أدخل كلمة المرور" autocomplete="current-password">
+            <label>${t('password')}</label>
+            <input type="password" id="password" class="form-input" placeholder="${placeholderPass}" autocomplete="current-password" dir="ltr">
           </div>
-          <button type="submit" class="btn btn-primary btn-xl w-full">دخول</button>
-          <div id="loginError" class="hidden" style="color:var(--danger,#ef4444);text-align:center;margin-top:12px;"></div>
+          <button type="submit" class="btn btn-primary btn-xl w-full">${t('login_button')}</button>
+          <div id="loginError" class="hidden" style="color:var(--danger,#ef4444);text-align:center;margin-top:12px;font-size:14px;"></div>
         </form>
-        <button id="langToggle" class="btn btn-ghost login-lang-btn">
+        <button id="langToggle" class="btn btn-ghost login-lang-btn" title="${langTitle}">
           ${langLabel}
         </button>
       </div>
@@ -397,24 +459,25 @@ const App = {
   getLogo(size) {
     size = size || 80;
     return `<svg width="${size}" height="${size}" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="50" cy="50" r="12" fill="#0D9488"/>
-      <ellipse cx="50" cy="50" rx="35" ry="14" stroke="#0D9488" stroke-width="2.5" fill="none" transform="rotate(0 50 50)"/>
-      <ellipse cx="50" cy="50" rx="35" ry="14" stroke="#14B8A6" stroke-width="2.5" fill="none" transform="rotate(60 50 50)"/>
-      <ellipse cx="50" cy="50" rx="35" ry="14" stroke="#0F766E" stroke-width="2.5" fill="none" transform="rotate(120 50 50)"/>
-      <circle cx="85" cy="50" r="5" fill="#14B8A6"/>
-      <circle cx="32.5" cy="21.7" r="5" fill="#0D9488"/>
-      <circle cx="32.5" cy="78.3" r="5" fill="#0F766E"/>
+      <circle cx="50" cy="50" r="12" fill="#C9A84C"/>
+      <ellipse cx="50" cy="50" rx="35" ry="14" stroke="#C9A84C" stroke-width="2.5" fill="none" transform="rotate(0 50 50)"/>
+      <ellipse cx="50" cy="50" rx="35" ry="14" stroke="#D4B76A" stroke-width="2.5" fill="none" transform="rotate(60 50 50)"/>
+      <ellipse cx="50" cy="50" rx="35" ry="14" stroke="#B8933A" stroke-width="2.5" fill="none" transform="rotate(120 50 50)"/>
+      <circle cx="85" cy="50" r="5" fill="#D4B76A"/>
+      <circle cx="32.5" cy="21.7" r="5" fill="#C9A84C"/>
+      <circle cx="32.5" cy="78.3" r="5" fill="#B8933A"/>
     </svg>`;
   },
 
   _renderModulePlaceholder(title, module) {
+    const loadingText = (Nawa.I18n.getLang() === 'ar') ? 'قيد التحميل...' : 'Loading...';
     return `
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#f1f5f9;font-family:Segoe UI,sans-serif;">
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#F5F3EE;font-family:Segoe UI,sans-serif;">
       <div style="text-align:center;">
         ${this.getLogo(64)}
-        <h2 style="margin-top:20px;color:#1e293b;font-size:22px;">${title}</h2>
-        <p style="color:#64748b;margin-top:8px;font-size:14px;">الوحدة ${module} قيد التحميل...</p>
-        <div style="margin-top:24px;width:48px;height:48px;border:4px solid #e2e8f0;border-top-color:#0d9488;border-radius:50%;animation:spin .8s linear infinite;margin:24px auto 0;"></div>
+        <h2 style="margin-top:20px;color:#0E1C3D;font-size:22px;">${title}</h2>
+        <p style="color:#8A8F9B;margin-top:8px;font-size:14px;">${module} - ${loadingText}</p>
+        <div style="margin-top:24px;width:48px;height:48px;border:4px solid #E5E3DE;border-top-color:#C9A84C;border-radius:50%;animation:spin .8s linear infinite;margin:24px auto 0;"></div>
       </div>
       <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
     </div>`;
@@ -427,9 +490,11 @@ const App = {
     const toast = document.createElement('div');
     toast.className = 'app-network-toast';
 
+    const t = (Nawa.I18n && Nawa.I18n.t) ? Nawa.I18n.t.bind(Nawa.I18n) : (k) => k;
+    const isAr = (Nawa.I18n && Nawa.I18n.getLang) ? Nawa.I18n.getLang() === 'ar' : true;
     const styles = {
-      offline: { bg: '#f59e0b', text: 'أنت غير متصل بالإنترنت' },
-      synced: { bg: '#22c55e', text: 'تمت المزامنة بنجاح' },
+      offline: { bg: '#f59e0b', text: isAr ? 'أنت غير متصل بالإنترنت' : 'You are offline' },
+      synced: { bg: '#22c55e', text: isAr ? 'تمت المزامنة بنجاح' : 'Sync completed' },
     };
 
     const s = styles[status] || styles.offline;
@@ -476,7 +541,7 @@ const App = {
       display: flex;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+      background: linear-gradient(135deg, #0E1C3D 0%, #162B55 50%, #0E1C3D 100%);
       font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
       padding: 20px;
     }
@@ -501,19 +566,19 @@ const App = {
     .login-company {
       font-size: 32px;
       font-weight: 800;
-      color: #0d9488;
+      color: #C9A84C;
       margin: 0;
       letter-spacing: -.5px;
     }
 
     .login-tagline {
       font-size: 14px;
-      color: #64748b;
+      color: #8A8F9B;
       margin: 6px 0 32px;
     }
 
     .login-form {
-      text-align: right;
+      text-align: start;
     }
 
     .login-form .form-group {
@@ -524,30 +589,30 @@ const App = {
       display: block;
       font-size: 13px;
       font-weight: 600;
-      color: #1e293b;
+      color: #1A1A1A;
       margin-bottom: 6px;
     }
 
     .login-form .form-input {
       width: 100%;
       padding: 12px 16px;
-      border: 1.5px solid #e2e8f0;
+      border: 1.5px solid #E5E3DE;
       border-radius: 10px;
       font-size: 15px;
       font-family: inherit;
       transition: all .2s;
-      background: #f8fafc;
+      background: #FAF9F7;
     }
 
     .login-form .form-input:focus {
       outline: none;
-      border-color: #0d9488;
-      box-shadow: 0 0 0 3px rgba(13,148,136,.12);
+      border-color: #C9A84C;
+      box-shadow: 0 0 0 3px rgba(201,168,76,.12);
       background: #fff;
     }
 
     .login-form .form-input::placeholder {
-      color: #94a3b8;
+      color: #A5A9B3;
     }
 
     .btn {
@@ -566,25 +631,25 @@ const App = {
     }
 
     .btn-primary {
-      background: #0d9488;
-      color: #fff;
+      background: #C9A84C;
+      color: #0E1C3D;
     }
 
     .btn-primary:hover {
-      background: #0f766e;
+      background: #B8933A;
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(13,148,136,.3);
+      box-shadow: 0 4px 12px rgba(201,168,76,.3);
     }
 
     .btn-ghost {
       background: transparent;
-      color: #64748b;
-      border: 1.5px solid #e2e8f0;
+      color: #8A8F9B;
+      border: 1.5px solid #E5E3DE;
     }
 
     .btn-ghost:hover {
-      border-color: #0d9488;
-      color: #0d9488;
+      border-color: #C9A84C;
+      color: #C9A84C;
     }
 
     .btn-xl {
@@ -599,16 +664,27 @@ const App = {
     .login-lang-btn {
       position: absolute;
       bottom: 16px;
-      left: 16px;
-      font-size: 12px;
-      padding: 6px 14px;
+      inset-inline-end: 16px;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 18px;
       border-radius: 8px;
+      background: #F5F3EE;
+      color: #8A8F9B;
+      border: 1.5px solid #E5E3DE;
+      transition: all 0.2s;
+    }
+
+    .login-lang-btn:hover {
+      background: #C9A84C;
+      color: #0E1C3D;
+      border-color: #C9A84C;
     }
 
     .login-footer {
       margin-top: 24px;
       font-size: 11px;
-      color: #94a3b8;
+      color: #A5A9B3;
     }
   `;
   document.head.appendChild(style);

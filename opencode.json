@@ -1,0 +1,22 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "pentester",
+  "agent": {
+    "pentester": {
+      "description": "Security penetration tester for nawah-pos — runs vulnerability scans after every code edit",
+      "mode": "subagent",
+      "permission": {
+        "edit": "deny",
+        "bash": "ask"
+      }
+    }
+  },
+  "command": {
+    "pentest": {
+      "description": "Run full security penetration test on nawah-pos backend and frontend"
+    }
+  },
+  "skills": {
+    "paths": [".opencode/skills"]
+  }
+}
