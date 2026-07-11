@@ -397,7 +397,7 @@
         topProducts.forEach(function (p) {
           var pct = Math.max((p.count / maxCount) * 100, 5);
           html += '<div class="admin-hbar-row">';
-          html += '<span class="admin-hbar-name">' + p.name + '</span>';
+          html += '<span class="admin-hbar-name">' + Admin._escapeHtml(p.name) + '</span>';
           html += '<div class="admin-hbar-track">';
           html += '<div class="admin-hbar-fill" style="width:' + pct + '%"><span>' + p.count + '</span></div>';
           html += '</div>';
@@ -565,18 +565,18 @@
           html += '<tr>';
           html += '<td><button class="admin-audit-expand-btn" data-idx="' + idx + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button></td>';
           html += '<td style="white-space:nowrap">' + self.formatDate(entry.timestamp) + ' ' + self.formatTime(entry.timestamp) + '</td>';
-          html += '<td>' + (entry.userName || entry.userId || '--') + '</td>';
+          html += '<td>' + self._escapeHtml(entry.userName || entry.userId || '--') + '</td>';
           html += '<td><span class="admin-action-badge ' + actionClass + '">' + actionLabel + '</span></td>';
-          html += '<td>' + storeLabel + ' - ' + recordDisplay + '</td>';
-          html += '<td>' + (entry.details ? (typeof entry.details === 'string' ? entry.details.slice(0, 40) : Nawa.I18n.t('details')) : '--') + '</td>';
-          html += '<td><span class="admin-audit-hash" title="' + (entry.hash || '') + '">' + hashDisplay + '</td>';
+          html += '<td>' + self._escapeHtml(storeLabel) + ' - ' + self._escapeHtml(recordDisplay) + '</td>';
+          html += '<td>' + self._escapeHtml(entry.details ? (typeof entry.details === 'string' ? entry.details.slice(0, 40) : Nawa.I18n.t('details')) : '--') + '</td>';
+          html += '<td><span class="admin-audit-hash" title="' + self._escapeHtml(entry.hash || '') + '">' + self._escapeHtml(hashDisplay) + '</td>';
           html += '</tr>';
 
           html += '<tr class="admin-audit-detail-row" id="audit-detail-' + idx + '">';
           html += '<td colspan="7">';
           html += '<div class="admin-audit-detail-content">';
           html += '<div class="admin-audit-detail-label">' + t('record_details') + '</div>';
-          html += '<pre>' + detailText + '</pre>';
+          html += '<pre>' + self._escapeHtml(detailText) + '</pre>';
           html += '</div></td></tr>';
         });
 

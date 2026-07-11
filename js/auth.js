@@ -1,7 +1,7 @@
 (function () {
   var SESSION_KEY = 'nawa_session';
   var SESSION_EXPIRY_MS = 8 * 60 * 60 * 1000;
-  var ADMIN_SESSION_EXPIRY_MS = 720 * 60 * 60 * 1000; // 30 days
+  var ADMIN_SESSION_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours (matches server JWT)
   var API_BASE = (window.Nawa && window.Nawa.CONFIG) ? window.Nawa.CONFIG.API_BASE : '/api';
 
   function getNow() { return new Date().toISOString(); }

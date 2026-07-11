@@ -9,11 +9,19 @@ const app = express();
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://nawah-point-of-sale.vercel.app';
 app.use(cors({
   origin: function (origin, cb) {
-    if (!origin || origin === ALLOWED_ORIGIN || origin.endsWith('.vercel.app')) return cb(null, true);
+    if (!origin || origin === ALLOWED_ORIGIN) return cb(null, true);
     return cb(null, false);
   },
   credentials: true
 }));
+
+app.use(function (req, res, next) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
 app.use(express.json({ limit: '1mb' }));
 
 const JWT_SECRET = process.env.JWT_SECRET;
