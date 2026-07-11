@@ -17,7 +17,10 @@ Nawa.POS = {
     orders: [],
     splitMode: null,
     splitParts: [],
-    splitPaid: 0
+    splitPaid: 0,
+    currentCustomer: null,
+    discount: null,
+    discountPresets: []
   },
 
   TAX_RATE: 0.15,
@@ -49,7 +52,8 @@ Nawa.POS = {
       this._loadTables(),
       this._loadProducts(),
       this._loadCategories(),
-      this._loadOrders()
+      this._loadOrders(),
+      this._loadDiscountPresets()
     ]);
 
     await this._syncFromServer();
@@ -102,6 +106,19 @@ Nawa.POS = {
       this.state.orders = await Nawa.DB.getAll(Nawa.CONFIG.STORES.ORDERS) || [];
     } catch (e) {
       this.state.orders = [];
+    }
+  },
+
+  async _loadDiscountPresets() {
+    try {
+      const res = await Nawa.Auth.apiFetch('/discounts');
+      if (res.ok) {
+        this.state.discountPresets = await res.json();
+      } else {
+        this.state.discountPresets = [];
+      }
+    } catch (e) {
+      this.state.discountPresets = [];
     }
   },
 
@@ -168,6 +185,14 @@ Nawa.POS = {
             try { await DB.add(S.FLOORS, self.state.floors[i]); } catch (e) {}
           }
         }
+      }
+    } catch (e) {}
+
+    try {
+      var res = await Nawa.Auth.apiFetch('/discounts');
+      if (res.ok) {
+        var serverDiscounts = await res.json();
+        self.state.discountPresets = serverDiscounts.filter(function (d) { return d.active !== false; });
       }
     } catch (e) {}
   },
@@ -278,6 +303,8 @@ Nawa.POS = {
       <div id="pos-receipt-modal" class="modal-overlay hidden"></div>
       <div id="pos-hold-modal" class="modal-overlay hidden"></div>
       <div id="pos-history-modal" class="modal-overlay hidden"></div>
+      <div id="pos-customer-modal" class="modal-overlay hidden"></div>
+      <div id="pos-discount-modal" class="modal-overlay hidden"></div>
     `;
   },
 
@@ -286,7 +313,13 @@ Nawa.POS = {
     const tableName = this.state.currentTable
       ? this._getTableLabel(this.state.currentTable)
       : Nawa.I18n.t('table');
+    const customer = this.state.currentCustomer;
     const lang = Nawa.I18n.getLang();
+
+    const customerLabel = customer
+      ? this._escapeHtml(customer.name)
+      : Nawa.I18n.t('no_customer');
+    const customerClass = customer ? ' pos-customer-selected' : '';
 
     return `
       <header class="pos-header">
@@ -297,6 +330,10 @@ Nawa.POS = {
           <button class="btn btn-ghost pos-table-btn" id="pos-select-table">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
             <span>${tableName}</span>
+          </button>
+          <button class="btn btn-ghost pos-customer-btn${customerClass}" id="pos-select-customer">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span>${customerLabel}</span>
           </button>
           <button class="btn btn-ghost pos-history-btn" id="pos-order-history-btn" style="display:flex;align-items:center;gap:6px;padding:8px 14px;font-size:0.8125rem;font-weight:600;border-radius:8px;" title="${Nawa.I18n.t('order_history')}">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
@@ -454,10 +491,22 @@ Nawa.POS = {
             <span>${Nawa.I18n.t('tax')} (15%)</span>
             <span id="pos-tax">${this.formatPrice(tax)}</span>
           </div>
+          ${this.state.discount ? `
+          <div class="pos-cart-row pos-discount-display" style="color:#16a34a;">
+            <span>${Nawa.I18n.t('discount')}: ${this._escapeHtml(this.state.discount.name)} ${this.state.discount.type === 'percent' ? '(' + this.state.discount.value + '%)' : ''}</span>
+            <span>-${this.formatPrice(this.getCartTotal().discountAmount)}</span>
+          </div>
+          ` : ''}
           <div class="pos-cart-row pos-cart-total">
             <span>${Nawa.I18n.t('total')}</span>
             <span id="pos-total">${this.formatPrice(total)}</span>
           </div>
+        </div>
+        <div class="pos-discount-actions" style="padding:4px 12px;">
+          ${this.state.discount
+            ? '<button class="btn btn-outline btn-sm pos-discount-btn" id="pos-discount-remove-btn" style="width:100%;font-size:0.8125rem;display:flex;align-items:center;justify-content:center;gap:4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> ' + Nawa.I18n.t('discount_remove') + '</button>'
+            : '<button class="btn btn-outline btn-sm pos-discount-btn" id="pos-discount-btn" style="width:100%;font-size:0.8125rem;display:flex;align-items:center;justify-content:center;gap:4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg> ' + Nawa.I18n.t('discount_apply') + '</button>'
+          }
         </div>
         <div class="pos-cart-actions">
           <button class="btn btn-outline btn-sm" id="pos-hold-btn" ${cart.length === 0 ? 'disabled' : ''}>
@@ -653,15 +702,45 @@ Nawa.POS = {
     if (!confirm(Nawa.I18n.t('confirm_clear_order'))) return;
 
     this.state.cart = [];
+    this.state.discount = null;
     this.render();
     this.showNotification(Nawa.I18n.t('cart_cleared'), 'info');
+  },
+
+  applyDiscount(preset) {
+    if (!preset) return;
+    this.state.discount = { name: preset.name, type: preset.type, value: preset.value };
+    this.render();
+    this.showNotification(Nawa.I18n.t('discount_applied') + ': ' + preset.name, 'success');
+  },
+
+  applyCustomDiscount(type, value, name) {
+    this.state.discount = { name: name || Nawa.I18n.t('discount'), type: type, value: value };
+    this.render();
+    this.showNotification(Nawa.I18n.t('discount_applied'), 'success');
+  },
+
+  removeDiscount() {
+    this.state.discount = null;
+    this.render();
+    this.showNotification(Nawa.I18n.t('discount_removed'), 'info');
   },
 
   getCartTotal() {
     const subtotal = this.state.cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const tax = subtotal * this.TAX_RATE;
-    const total = subtotal + tax;
-    return { subtotal, tax, total };
+    const preDiscountTotal = subtotal + tax;
+    let discountAmount = 0;
+    if (this.state.discount) {
+      const d = this.state.discount;
+      if (d.type === 'percent') {
+        discountAmount = subtotal * (d.value / 100);
+      } else {
+        discountAmount = Math.min(d.value, subtotal);
+      }
+    }
+    const total = Math.max(preDiscountTotal - discountAmount, 0);
+    return { subtotal, tax, total, discountAmount };
   },
 
   // ===========================
@@ -670,16 +749,22 @@ Nawa.POS = {
   async holdOrder() {
     if (this.state.cart.length === 0) return;
 
-    const { subtotal, tax, total } = this.getCartTotal();
+    const { subtotal, tax, total, discountAmount } = this.getCartTotal();
     const order = {
       id: this._generateId(),
       items: JSON.parse(JSON.stringify(this.state.cart)),
       subtotal,
       tax,
       total,
+      discountType: this.state.discount ? this.state.discount.type : null,
+      discountValue: this.state.discount ? this.state.discount.value : 0,
+      discountAmount,
+      discountName: this.state.discount ? this.state.discount.name : '',
       tableId: this.state.currentTable || null,
       floorId: this.state.currentFloor || null,
       employeeId: this.state.employee ? (this.state.employee.id || this.state.employee.username) : null,
+      customerId: this.state.currentCustomer ? this.state.currentCustomer.id : null,
+      customerName: this.state.currentCustomer ? this.state.currentCustomer.name : null,
       status: 'held',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -712,6 +797,8 @@ Nawa.POS = {
       tableId: this.state.currentTable || null,
       floorId: this.state.currentFloor || null,
       employeeId: this.state.employee ? (this.state.employee.id || this.state.employee.username) : null,
+      customerId: this.state.currentCustomer ? this.state.currentCustomer.id : null,
+      customerName: this.state.currentCustomer ? this.state.currentCustomer.name : null,
       status: 'pending',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -748,6 +835,7 @@ Nawa.POS = {
     }
 
     this.state.cart = [];
+    this.state.discount = null;
     this.render();
     this.showNotification(Nawa.I18n.t('cancel'), 'info');
   },
@@ -836,7 +924,7 @@ Nawa.POS = {
     this.state.splitParts = [];
     this.state.splitPaid = 0;
 
-    const { subtotal, tax, total } = this.getCartTotal();
+    const { subtotal, tax, total, discountAmount } = this.getCartTotal();
     const modal = document.getElementById('pos-payment-modal');
     if (!modal) return;
 
@@ -863,6 +951,7 @@ Nawa.POS = {
               <span>${Nawa.I18n.t('tax')} (15%)</span>
               <span>${this.formatPrice(tax)}</span>
             </div>
+            ${discountAmount > 0 ? '<div class="pos-cart-row" style="color:#16a34a;"><span>' + Nawa.I18n.t('discount') + '</span><span>-' + this.formatPrice(discountAmount) + '</span></div>' : ''}
           </div>
           <div class="form-group" style="margin-top:16px;">
             <label class="form-label">${Nawa.I18n.t('amount_received')}</label>
@@ -917,6 +1006,10 @@ Nawa.POS = {
           subtotal,
           tax,
           total,
+          discountType: this.state.discount ? this.state.discount.type : null,
+          discountValue: this.state.discount ? this.state.discount.value : 0,
+          discountAmount: this.getCartTotal().discountAmount,
+          discountName: this.state.discount ? this.state.discount.name : '',
           note: this.state.orderNote,
           amountReceived: received,
           change: received - total,
@@ -924,6 +1017,8 @@ Nawa.POS = {
           tableId: this.state.currentTable || null,
           floorId: this.state.currentFloor || null,
           employeeId: this.state.employee ? (this.state.employee.id || this.state.employee.username) : null,
+          customerId: this.state.currentCustomer ? this.state.currentCustomer.id : null,
+          customerName: this.state.currentCustomer ? this.state.currentCustomer.name : null,
           status: 'paid',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
@@ -943,6 +1038,8 @@ Nawa.POS = {
           this.state.cart = [];
           this.state.orderNote = '';
           this.state.currentTable = null;
+          this.state.currentCustomer = null;
+          this.state.discount = null;
           this.render();
           this.showNotification(Nawa.I18n.t('success_payment'), 'success');
         } catch (e) {
@@ -996,6 +1093,7 @@ Nawa.POS = {
               <div>${Nawa.I18n.t('date')}: ${date}</div>
               <div>${Nawa.I18n.t('table')}: ${tableName}</div>
               <div>${Nawa.I18n.t('employee')}: ${this._escapeHtml(empName)}</div>
+              ${order.customerName ? '<div>' + Nawa.I18n.t('customer') + ': ' + this._escapeHtml(order.customerName) + '</div>' : ''}
             </div>
             <div class="pos-receipt-divider">---------------------------</div>
             <table class="pos-receipt-table">
@@ -1019,6 +1117,11 @@ Nawa.POS = {
                 <span>${Nawa.I18n.t('tax')} (15%)</span>
                 <span>${this.formatPrice(order.tax)}</span>
               </div>
+              ${order.discountAmount > 0 ? `
+              <div class="pos-cart-row" style="color:#16a34a;">
+                <span>${Nawa.I18n.t('discount')}: ${this._escapeHtml(order.discountName || '')}</span>
+                <span>-${this.formatPrice(order.discountAmount)}</span>
+              </div>` : ''}
               <div class="pos-cart-row pos-cart-total">
                 <span>${Nawa.I18n.t('total')}</span>
                 <span>${this.formatPrice(order.total)}</span>
@@ -1286,6 +1389,20 @@ Nawa.POS = {
         if (hm) hm.classList.add('hidden');
         return;
       }
+      if (action === 'close-customer-modal') {
+        this.hideCustomerModal();
+        return;
+      }
+      if (action === 'pos-add-customer') {
+        this._showAddCustomerForm();
+        return;
+      }
+      if (action === 'pos-clear-customer') {
+        this.state.currentCustomer = null;
+        this.hideCustomerModal();
+        this.render();
+        return;
+      }
 
       // Split bill actions
       if (action === 'open-split-bill') {
@@ -1348,6 +1465,14 @@ Nawa.POS = {
           this.cancelOrder();
           return;
         }
+        if (e.target.closest('#pos-discount-btn')) {
+          this.showDiscountModal();
+          return;
+        }
+        if (e.target.closest('#pos-discount-remove-btn')) {
+          this.removeDiscount();
+          return;
+        }
         if (e.target.closest('#pos-pay-btn')) {
           this.processPayment();
           return;
@@ -1362,6 +1487,32 @@ Nawa.POS = {
         }
         if (e.target.closest('#pos-order-history-btn')) {
           this.showOrderHistory();
+          return;
+        }
+        if (e.target.closest('#pos-select-customer')) {
+          this.showCustomerModal();
+          return;
+        }
+        if (e.target.closest('#pos-discount-modal-close')) {
+          this.hideDiscountModal();
+          return;
+        }
+        if (e.target.closest('#pos-disc-apply-custom')) {
+          const type = document.getElementById('pos-disc-type').value;
+          const value = parseFloat(document.getElementById('pos-disc-value').value) || 0;
+          if (value > 0) {
+            this.applyCustomDiscount(type, value, null);
+            this.hideDiscountModal();
+          }
+          return;
+        }
+        const presetBtn = e.target.closest('.pos-discount-preset-btn');
+        if (presetBtn) {
+          try {
+            const preset = JSON.parse(decodeURIComponent(presetBtn.dataset.discountPreset));
+            this.applyDiscount(preset);
+            this.hideDiscountModal();
+          } catch (e) {}
           return;
         }
       });
@@ -1380,6 +1531,13 @@ Nawa.POS = {
       }
       if (e.target.classList.contains('pos-note-input')) {
         this.state.orderNote = e.target.value;
+      }
+      if (e.target.classList.contains('pos-customer-search-input')) {
+        clearTimeout(this._customerSearchDebounce);
+        var self = this;
+        this._customerSearchDebounce = setTimeout(function () {
+          self._loadCustomerModalData(e.target.value);
+        }, 300);
       }
       if (e.target.classList.contains('split-amount-input')) {
         const idx = parseInt(e.target.dataset.splitIndex, 10);
@@ -1403,6 +1561,9 @@ Nawa.POS = {
         if (rm) rm.classList.add('hidden');
         const hm = document.getElementById('pos-history-modal');
         if (hm) hm.classList.add('hidden');
+        const dm = document.getElementById('pos-discount-modal');
+        if (dm) dm.classList.add('hidden');
+        this.hideCustomerModal();
       }
     });
     this._listenersAttached = true;
@@ -1560,7 +1721,7 @@ Nawa.POS = {
   },
 
   async _completeSplitOrder() {
-    const { subtotal, tax, total } = this.getCartTotal();
+    const { subtotal, tax, total, discountAmount } = this.getCartTotal();
     const payments = this.state.splitParts.map(p => ({
       amount: p.amount,
       method: p.method,
@@ -1575,6 +1736,10 @@ Nawa.POS = {
       subtotal,
       tax,
       total,
+      discountType: this.state.discount ? this.state.discount.type : null,
+      discountValue: this.state.discount ? this.state.discount.value : 0,
+      discountAmount,
+      discountName: this.state.discount ? this.state.discount.name : '',
       note: this.state.orderNote,
       amountReceived: totalReceived,
       change: Math.round((totalReceived - total) * 100) / 100,
@@ -1583,6 +1748,8 @@ Nawa.POS = {
       tableId: this.state.currentTable || null,
       floorId: this.state.currentFloor || null,
       employeeId: this.state.employee ? (this.state.employee.id || this.state.employee.username) : null,
+      customerId: this.state.currentCustomer ? this.state.currentCustomer.id : null,
+      customerName: this.state.currentCustomer ? this.state.currentCustomer.name : null,
       status: 'paid',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -1608,6 +1775,8 @@ Nawa.POS = {
       this.state.cart = [];
       this.state.orderNote = '';
       this.state.currentTable = null;
+      this.state.currentCustomer = null;
+      this.state.discount = null;
       this.render();
       this._showToast(Nawa.I18n.t('split_complete'), 'success');
     } catch (e) {
@@ -1694,6 +1863,226 @@ Nawa.POS = {
           <button class="btn btn-ghost" data-action="split-cancel">${Nawa.I18n.t('split_cancel')}</button>
         </div>
       </div>`;
+  },
+
+  // ===========================
+  // CUSTOMER OPERATIONS
+  // ===========================
+  showCustomerModal() {
+    var modal = document.getElementById('pos-customer-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    modal.innerHTML = this.renderCustomerModal();
+    this._loadCustomerModalData();
+  },
+
+  hideCustomerModal() {
+    var modal = document.getElementById('pos-customer-modal');
+    if (modal) modal.classList.add('hidden');
+  },
+
+  renderCustomerModal() {
+    return `
+      <div class="modal pos-customer-modal">
+        <div class="modal-header">
+          <h3>${Nawa.I18n.t('select_customer')}</h3>
+          <button class="btn btn-ghost btn-icon" data-action="close-customer-modal">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+        <div class="modal-body" style="padding:0;">
+          <div style="padding:12px 16px;border-bottom:1px solid var(--border);">
+            <input type="text" class="form-input pos-customer-search-input" placeholder="${Nawa.I18n.t('search_customers')}" />
+          </div>
+          <div class="pos-customer-list" id="pos-customer-list">
+            <div class="admin-loading" style="padding:40px;text-align:center;"><div class="spinner-lg"></div></div>
+          </div>
+        </div>
+        <div class="modal-footer" style="justify-content:space-between;">
+          <button class="btn btn-outline" data-action="pos-clear-customer">${Nawa.I18n.t('no_customer')}</button>
+          <button class="btn btn-primary" data-action="pos-add-customer">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            ${Nawa.I18n.t('add_customer')}
+          </button>
+        </div>
+      </div>`;
+  },
+
+  async _loadCustomerModalData(searchQuery) {
+    var self = this;
+    var listEl = document.getElementById('pos-customer-list');
+    if (!listEl) return;
+
+    try {
+      var url = '/customers' + (searchQuery ? '?search=' + encodeURIComponent(searchQuery) : '');
+      var res = await Nawa.Auth.apiFetch(url);
+      if (res.ok) {
+        var customers = await res.json();
+        self._customerListData = customers;
+        self._renderCustomerList(listEl, customers);
+      } else {
+        listEl.innerHTML = '<div class="admin-empty" style="padding:40px;"><div class="admin-empty-title">' + Nawa.I18n.t('no_data') + '</div></div>';
+      }
+    } catch (e) {
+      listEl.innerHTML = '<div class="admin-empty" style="padding:40px;"><div class="admin-empty-title">' + Nawa.I18n.t('error_network') + '</div></div>';
+    }
+  },
+
+  _renderCustomerList(container, customers) {
+    if (!container) return;
+    var self = this;
+    var currentId = this.state.currentCustomer ? this.state.currentCustomer.id : null;
+
+    if (!customers || customers.length === 0) {
+      container.innerHTML = '<div class="admin-empty" style="padding:40px;"><div class="admin-empty-title">' + Nawa.I18n.t('no_data') + '</div></div>';
+      return;
+    }
+
+    var html = '';
+    customers.forEach(function (c) {
+      var selected = currentId === c.id ? ' selected' : '';
+      var lastVisit = c.lastVisit ? new Date(c.lastVisit).toLocaleDateString(Nawa.I18n.getLang() === 'ar' ? 'ar-SA' : 'en-US') : '--';
+      html += '<div class="pos-customer-card' + selected + '" data-customer-id="' + c.id + '">';
+      html += '<div class="pos-customer-card-main">';
+      html += '<div class="pos-customer-card-avatar">' + self._escapeHtml((c.name || '').charAt(0)) + '</div>';
+      html += '<div class="pos-customer-card-info">';
+      html += '<div class="pos-customer-card-name">' + self._escapeHtml(c.name) + '</div>';
+      html += '<div class="pos-customer-card-phone">' + self._escapeHtml(c.phone || '') + '</div>';
+      html += '</div></div>';
+      html += '<div class="pos-customer-card-stats">';
+      html += '<span class="pos-customer-card-stat">' + (c.orderCount || 0) + ' ' + Nawa.I18n.t('customer_orders') + '</span>';
+      html += '</div></div>';
+    });
+
+    container.innerHTML = html;
+
+    container.querySelectorAll('.pos-customer-card').forEach(function (card) {
+      card.addEventListener('click', function () {
+        var cid = card.getAttribute('data-customer-id');
+        var customer = (self._customerListData || []).find(function (c) { return c.id === cid; });
+        if (customer) {
+          self.state.currentCustomer = { id: customer.id, name: customer.name };
+          self.hideCustomerModal();
+          self.render();
+        }
+      });
+    });
+  },
+
+  async _showAddCustomerForm() {
+    var self = this;
+    var modal = document.getElementById('pos-customer-modal');
+    if (!modal) return;
+
+    modal.innerHTML = `
+      <div class="modal pos-customer-modal">
+        <div class="modal-header">
+          <h3>${Nawa.I18n.t('add_customer')}</h3>
+          <button class="btn btn-ghost btn-icon" data-action="close-customer-modal">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">${Nawa.I18n.t('customer_name')} *</label>
+            <input type="text" class="form-input" id="pos-cust-name" placeholder="${Nawa.I18n.t('customer_name')}" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">${Nawa.I18n.t('customer_phone')}</label>
+            <input type="tel" class="form-input" id="pos-cust-phone" placeholder="${Nawa.I18n.t('customer_phone')}" dir="ltr" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">${Nawa.I18n.t('customer_notes')}</label>
+            <textarea class="form-input" id="pos-cust-notes" rows="2" style="resize:vertical;" placeholder="${Nawa.I18n.t('customer_notes')}"></textarea>
+          </div>
+          <div id="pos-cust-error" class="hidden" style="color:var(--danger,#ef4444);text-align:center;margin-bottom:8px;font-size:0.8125rem;"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" data-action="close-customer-modal">${Nawa.I18n.t('cancel')}</button>
+          <button class="btn btn-primary" id="pos-cust-save">${Nawa.I18n.t('save')}</button>
+        </div>
+      </div>`;
+
+    var saveBtn = document.getElementById('pos-cust-save');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', async function () {
+        var name = (document.getElementById('pos-cust-name') || {}).value || '';
+        var phone = (document.getElementById('pos-cust-phone') || {}).value || '';
+        var notes = (document.getElementById('pos-cust-notes') || {}).value || '';
+        var errEl = document.getElementById('pos-cust-error');
+
+        if (!name.trim()) {
+          if (errEl) { errEl.textContent = Nawa.I18n.t('error_required_field'); errEl.classList.remove('hidden'); }
+          return;
+        }
+
+        try {
+          var res = await Nawa.Auth.apiFetch('/customers', {
+            method: 'POST',
+            body: { name: name.trim(), phone: phone.trim(), notes: notes.trim() }
+          });
+          if (res.ok) {
+            var saved = await res.json();
+            self.state.currentCustomer = { id: saved.id, name: saved.name };
+            self.hideCustomerModal();
+            self.render();
+            self.showNotification(Nawa.I18n.t('success_save'), 'success');
+          } else {
+            var err = await res.json();
+            if (errEl) { errEl.textContent = err.error || Nawa.I18n.t('error_generic'); errEl.classList.remove('hidden'); }
+          }
+        } catch (e) {
+          if (errEl) { errEl.textContent = Nawa.I18n.t('error_network'); errEl.classList.remove('hidden'); }
+        }
+      });
+    }
+  },
+
+  // ===========================
+  // DISCOUNT MODAL
+  // ===========================
+  showDiscountModal() {
+    const modal = document.getElementById('pos-discount-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    modal.innerHTML = this.renderDiscountModal();
+  },
+
+  hideDiscountModal() {
+    const modal = document.getElementById('pos-discount-modal');
+    if (modal) modal.classList.add('hidden');
+  },
+
+  renderDiscountModal() {
+    const t = Nawa.I18n.t;
+    const presets = (this.state.discountPresets || []).filter(d => d.active !== false);
+    const isAr = (Nawa.I18n.getLang() === 'ar');
+    let html = '<div class="modal pos-discount-modal">';
+    html += '<div class="modal-header"><h3>' + t('discount_apply') + '</h3>';
+    html += '<button class="btn btn-ghost btn-icon" id="pos-discount-modal-close"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>';
+    html += '<div class="modal-body">';
+    if (presets.length > 0) {
+      html += '<div style="margin-bottom:16px;">';
+      html += '<label class="form-label">' + t('discount_presets') + '</label>';
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:8px;">';
+      presets.forEach(function (d) {
+        const typeIcon = d.type === 'percent' ? '%' : ' ل.س';
+        html += '<button class="btn pos-discount-preset-btn" data-discount-preset="' + encodeURIComponent(JSON.stringify({ name: d.name, type: d.type, value: d.value })) + '" style="padding:12px;border:2px solid var(--border);border-radius:10px;background:var(--card);cursor:pointer;text-align:center;font-weight:700;display:flex;flex-direction:column;align-items:center;gap:4px;">';
+        html += '<span style="font-size:1.25rem;">' + this._escapeHtml(d.name) + '</span>';
+        html += '<span style="font-size:0.875rem;color:var(--navy);">' + d.value + typeIcon + '</span>';
+        html += '</button>';
+      });
+      html += '</div></div>';
+    }
+    html += '<div style="border-top:1px solid var(--border);padding-top:16px;">';
+    html += '<label class="form-label">' + t('discount_apply') + ' (' + (isAr ? 'مخصص' : 'Custom') + ')</label>';
+    html += '<div style="display:flex;gap:8px;margin-top:8px;">';
+    html += '<select class="form-input" id="pos-disc-type" style="flex:1;"><option value="percent">' + t('discount_percent') + '</option><option value="fixed">' + t('discount_fixed') + '</option></select>';
+    html += '<input type="number" class="form-input" id="pos-disc-value" placeholder="' + t('discount_value') + '" min="0" step="1" style="flex:1;">';
+    html += '<button class="btn btn-primary" id="pos-disc-apply-custom">' + t('discount_apply') + '</button>';
+    html += '</div></div>';
+    html += '</div></div>';
+    return html;
   },
 
   // ===========================
@@ -1869,6 +2258,7 @@ Nawa.POS = {
           </div>
           <div class="pos-history-detail-items">${rows}</div>
           <div class="pos-history-detail-totals">
+            ${order.discountAmount > 0 ? '<div class="pos-cart-row" style="color:#16a34a;"><span>' + t('discount') + ': ' + self._escapeHtml(order.discountName || '') + '</span><span>-' + self.formatPrice(order.discountAmount) + '</span></div>' : ''}
             <div class="pos-cart-row pos-cart-total"><span>${t('total')}</span><span>${self.formatPrice(order.total)}</span></div>
           </div>
         </div>

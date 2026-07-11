@@ -30,12 +30,16 @@
       products: [],
       categories: [],
       floors: [],
+      discounts: [],
       attendance: [],
       orderHistory: [],
       orderHistoryLoading: false,
       orderHistoryFilters: { from: '', to: '' },
       orderHistorySearch: '',
-      orderHistoryExpanded: null
+      orderHistoryExpanded: null,
+      customers: [],
+      customersLoading: false,
+      customerModal: { open: false, editId: null }
     },
 
     async init() {
@@ -73,12 +77,28 @@
         this.calculateStats();
 
         try {
+          var discRes = await Nawa.Auth.apiFetch('/discounts');
+          if (discRes.ok) {
+            this.state.discounts = await discRes.json();
+          }
+        } catch (e) {}
+        this.state.discounts = this.state.discounts || [];
+
+        try {
           var attRes = await Nawa.Auth.apiFetch('/attendance');
           if (attRes.ok) {
             this.state.attendance = await attRes.json();
           }
         } catch (e) {}
         this.state.attendance = this.state.attendance || [];
+
+        try {
+          var custRes = await Nawa.Auth.apiFetch('/customers');
+          if (custRes.ok) {
+            this.state.customers = await custRes.json();
+          }
+        } catch (e) {}
+        this.state.customers = this.state.customers || [];
       } catch (e) {
         this.showNotification(Nawa.I18n.t('error_generic'), 'error');
       }
@@ -240,6 +260,7 @@
         case 'audit': html += this.renderAuditLog(); break;
         case 'daily-report': html += this.renderDailyReport(); break;
         case 'employees': html += this.renderEmployees(); break;
+        case 'customers': html += this.renderCustomers(); break;
         case 'order-history': html += this.renderOrderHistory(); break;
         case 'dashboard-settings': html += this.renderDashboardSettings(); break;
         case 'settings': html += this.renderSettings(); break;
@@ -258,6 +279,7 @@
         { id: 'audit', label: isAr ? 'سجل التعديلات' : 'Audit Log', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>' },
         { id: 'daily-report', label: isAr ? 'التقرير اليومي' : 'Daily Report', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>' },
         { id: 'employees', label: isAr ? 'الموظفين' : 'Employees', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>' },
+        { id: 'customers', label: isAr ? 'العملاء' : 'Customers', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>' },
         { id: 'order-history', label: isAr ? 'سجل الطلبات' : 'Order History', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>' },
         { id: 'dashboard-settings', label: isAr ? 'تعديلات اللوحة' : 'Dashboard Mods', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/><path d="M14 9l3 0"/><path d="M14 15l3 0"/></svg>' },
         { id: 'settings', label: isAr ? 'الإعدادات' : 'Settings', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>' }
@@ -299,6 +321,7 @@
         audit: (window.Nawa.I18n.getLang() === 'ar') ? 'سجل التعديلات' : 'Audit Log',
         'daily-report': (window.Nawa.I18n.getLang() === 'ar') ? 'التقرير اليومي' : 'Daily Report',
         employees: (window.Nawa.I18n.getLang() === 'ar') ? 'الموظفين' : 'Employees',
+        customers: (window.Nawa.I18n.getLang() === 'ar') ? 'العملاء' : 'Customers',
         'order-history': (window.Nawa.I18n.getLang() === 'ar') ? 'سجل الطلبات' : 'Order History',
         'dashboard-settings': (window.Nawa.I18n.getLang() === 'ar') ? 'تعديلات اللوحة' : 'Dashboard Settings',
         settings: (window.Nawa.I18n.getLang() === 'ar') ? 'الإعدادات' : 'Settings'
@@ -1022,6 +1045,84 @@
       return html;
     },
 
+    renderCustomers() {
+      var self = this;
+      var customers = this.state.customers;
+      var orders = this.state.orders;
+      var isAr = Nawa.I18n.getLang() === 'ar';
+
+      var html = '<div class="admin-customers">';
+
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">';
+      html += '<h2 style="margin:0;font-size:1.2rem;font-weight:700;color:var(--navy,#0E1C3D);">' + Nawa.I18n.t('customers') + ' (' + customers.length + ')</h2>';
+      html += '<button class="btn btn-primary" id="add-customer-btn" style="display:flex;align-items:center;gap:6px;">';
+      html += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+      html += Nawa.I18n.t('add_customer');
+      html += '</button></div>';
+
+      html += '<div class="admin-customers-grid">';
+
+      if (customers.length === 0) {
+        html += '<div class="admin-empty"><div class="admin-empty-title">' + (isAr ? 'لا يوجد عملاء بعد' : 'No customers yet') + '</div></div>';
+      }
+
+      customers.forEach(function (c) {
+        var custOrders = orders.filter(function (o) { return o.customerId === c.id; });
+        var paidOrders = custOrders.filter(function (o) { return o.status === 'paid' || o.status === 'completed'; });
+        var totalSpent = 0;
+        paidOrders.forEach(function (o) { totalSpent += o.total || 0; });
+        var initial = (c.name || '').charAt(0) || '?';
+        var lastVisit = c.updatedAt || c.createdAt;
+
+        html += '<div class="admin-customer-card">';
+        html += '<div class="admin-customer-header">';
+        html += '<div class="admin-customer-avatar">' + self._escapeHtml(initial) + '</div>';
+        html += '<div class="admin-customer-info">';
+        html += '<div class="admin-customer-name">' + self._escapeHtml(c.name || '--') + '</div>';
+        html += '<div class="admin-customer-phone">' + self._escapeHtml(c.phone || '--') + '</div>';
+        html += '</div>';
+        html += '</div>';
+
+        html += '<div class="admin-customer-stats">';
+        html += '<div class="admin-customer-stat"><div class="admin-customer-stat-value">' + self.formatNumber(paidOrders.length) + '</div><div class="admin-customer-stat-label">' + Nawa.I18n.t('customer_orders') + '</div></div>';
+        html += '<div class="admin-customer-stat"><div class="admin-customer-stat-value">' + self.formatCurrency(totalSpent) + '</div><div class="admin-customer-stat-label">' + Nawa.I18n.t('customer_total_spent') + '</div></div>';
+        html += '</div>';
+
+        if (c.notes) {
+          html += '<div style="padding:0 16px 8px;font-size:0.8125rem;color:var(--text-muted,#6b7280);white-space:pre-wrap;">' + self._escapeHtml(c.notes) + '</div>';
+        }
+
+        html += '<div class="admin-customer-actions">';
+        html += '<button class="btn btn-sm btn-ghost" data-edit-customer="' + c.id + '">' + Nawa.I18n.t('edit') + '</button>';
+        html += '<button class="btn btn-sm btn-danger" data-delete-customer="' + c.id + '">' + Nawa.I18n.t('delete') + '</button>';
+        html += '</div>';
+        html += '</div>';
+      });
+
+      html += '</div>';
+
+      html += '<div class="modal-overlay hidden" id="customer-modal-overlay">';
+      html += '<div class="modal">';
+      html += '<div class="modal-header"><h3 id="customer-modal-title">' + Nawa.I18n.t('add_customer') + '</h3>';
+      html += '<button class="btn btn-ghost btn-icon" id="customer-modal-close"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>';
+      html += '<div class="modal-body">';
+      html += '<div id="customer-error" class="hidden" style="color:#ef4444;text-align:center;margin-bottom:12px;font-size:14px;"></div>';
+      html += '<div class="form-group"><label>' + Nawa.I18n.t('customer_name') + ' *</label>';
+      html += '<input type="text" class="form-input" id="admin-cust-name" placeholder="' + Nawa.I18n.t('customer_name') + '"></div>';
+      html += '<div class="form-group"><label>' + Nawa.I18n.t('customer_phone') + '</label>';
+      html += '<input type="tel" class="form-input" id="admin-cust-phone" placeholder="' + Nawa.I18n.t('customer_phone') + '" dir="ltr"></div>';
+      html += '<div class="form-group"><label>' + Nawa.I18n.t('customer_notes') + '</label>';
+      html += '<textarea class="form-input" id="admin-cust-notes" rows="3" style="resize:vertical;" placeholder="' + Nawa.I18n.t('customer_notes') + '"></textarea></div>';
+      html += '</div>';
+      html += '<div class="modal-footer">';
+      html += '<button class="btn btn-ghost" id="customer-modal-cancel">' + Nawa.I18n.t('close_btn') + '</button>';
+      html += '<button class="btn btn-primary" id="customer-modal-save">' + Nawa.I18n.t('save') + '</button>';
+      html += '</div></div></div>';
+
+      html += '</div>';
+      return html;
+    },
+
     renderOrderHistory() {
       var self = this;
       var t = Nawa.I18n.t;
@@ -1209,6 +1310,7 @@
         { id: 'products', label: isAr ? 'المنتجات' : 'Products', icon: '📦' },
         { id: 'categories', label: isAr ? 'الفئات' : 'Categories', icon: '🏷️' },
         { id: 'tables', label: isAr ? 'الطاولات' : 'Tables', icon: '🪑' },
+        { id: 'discounts', label: isAr ? 'قوائم الخصم' : 'Discounts', icon: '💰' },
         { id: 'features', label: isAr ? 'المميزات' : 'Features', icon: '⚙️' },
         { id: 'business', label: isAr ? 'إعدادات العمل' : 'Business', icon: '💼' }
       ];
@@ -1331,6 +1433,40 @@
             });
             html += '</div>';
           }
+          break;
+
+        case 'discounts':
+          var discounts = this.state.discounts || [];
+          html += '<div style="max-width:960px;">';
+          html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
+          html += '<h3 style="margin:0;font-size:1.1rem;font-weight:700;color:var(--navy,#0E1C3D);">' + (isAr ? 'قوائم الخصم' : 'Discount Presets') + ' <span style="color:var(--text-secondary,#6B7280);font-weight:400;">(' + discounts.length + ')</span></h3>';
+          html += '<button class="btn btn-primary btn-sm ds-add-item" data-ds-type="discount" style="display:flex;align-items:center;gap:4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> ' + (isAr ? 'إضافة خصم' : 'Add Discount') + '</button>';
+          html += '</div>';
+          if (discounts.length === 0) {
+            html += '<div style="text-align:center;padding:48px;color:var(--text-secondary,#6B7280);"><div style="font-size:2.5rem;margin-bottom:12px;">💰</div>' + (isAr ? 'لا توجد قوائم خصم بعد' : 'No discount presets yet') + '</div>';
+          } else {
+            html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;">';
+            discounts.forEach(function (d) {
+              var typeLabel = d.type === 'percent' ? (isAr ? 'نسبة مئوية' : 'Percentage') : (isAr ? 'مبلغ ثابت' : 'Fixed Amount');
+              var typeIcon = d.type === 'percent' ? '%' : '$';
+              var statusColor = d.active ? '#22c55e' : '#ef4444';
+              var statusText = d.active ? (isAr ? 'نشط' : 'Active') : (isAr ? 'معطل' : 'Inactive');
+              html += '<div class="admin-discount-card" style="background:var(--card,#fff);border:1px solid var(--border,#E5E7EB);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:8px;position:relative;">';
+              html += '<div style="display:flex;justify-content:space-between;align-items:start;">';
+              html += '<div><div style="font-weight:700;font-size:0.9375rem;">' + Admin._escapeHtml(d.name || '--') + '</div>';
+              html += '<div style="font-size:0.75rem;color:var(--text-secondary,#6B7280);margin-top:2px;">' + typeLabel + '</div></div>';
+              html += '<div style="display:flex;gap:4px;">';
+              html += '<button class="btn btn-ghost btn-sm ds-edit-item" data-ds-type="discount" data-id="' + d.id + '" style="padding:4px 6px;">✏️</button>';
+              html += '<button class="btn btn-ghost btn-sm ds-delete-item" data-ds-type="discount" data-id="' + d.id + '" style="padding:4px 6px;color:var(--danger,#ef4444);">🗑️</button>';
+              html += '</div></div>';
+              html += '<div style="display:flex;align-items:center;gap:8px;">';
+              html += '<div style="background:var(--navy,#0E1C3D);color:#fff;border-radius:8px;padding:4px 10px;font-weight:700;font-size:0.875rem;">' + Admin._escapeHtml(String(d.value)) + typeIcon + '</div>';
+              html += '<span style="font-size:0.75rem;color:' + statusColor + ';font-weight:600;">● ' + statusText + '</span>';
+              html += '</div></div>';
+            });
+            html += '</div>';
+          }
+          html += '</div>';
           break;
 
         case 'features':
@@ -1460,6 +1596,7 @@
         else if (type === 'category') item = (this.state.categories || []).find(function (c) { return c.id === editId; });
         else if (type === 'table') item = (this.state.tables || []).find(function (tbl) { return tbl.id === editId; });
         else if (type === 'floor') item = (this.state.floors || []).find(function (f) { return f.id === editId; });
+        else if (type === 'discount') item = (this.state.discounts || []).find(function (d) { return d.id === editId; });
       }
 
       var html = '';
@@ -1519,6 +1656,24 @@
         html += '<input type="text" class="form-input" id="ds-m-name" value="' + Admin._escapeHtml(item ? item.name : '') + '" placeholder="' + (isAr ? 'مثال: الطابق الأول' : 'e.g. Ground Floor') + '"></div>';
         html += '<div class="form-group"><label class="form-label">' + (isAr ? 'الترتيب' : 'Sort Order') + '</label>';
         html += '<input type="number" class="form-input" id="ds-m-sortOrder" value="' + (item && item.sortOrder !== undefined ? item.sortOrder : 0) + '" min="0"></div>';
+      } else if (type === 'discount') {
+        title.textContent = item ? (isAr ? 'تعديل خصم' : 'Edit Discount') : (isAr ? 'إضافة خصم' : 'Add Discount');
+        html += '<div class="form-group"><label class="form-label">' + (isAr ? 'اسم الخصم' : 'Discount Name') + ' *</label>';
+        html += '<input type="text" class="form-input" id="ds-m-name" value="' + Admin._escapeHtml(item ? item.name : '') + '" placeholder="' + (isAr ? 'مثال: خصم موسمي' : 'e.g. Seasonal Discount') + '"></div>';
+        html += '<div style="display:flex;gap:12px;">';
+        html += '<div class="form-group" style="flex:1"><label class="form-label">' + (isAr ? 'نوع الخصم' : 'Discount Type') + '</label>';
+        html += '<select class="form-input" id="ds-m-discType">';
+        html += '<option value="percent"' + (item && item.type === 'percent' ? ' selected' : '') + '>' + (isAr ? 'نسبة مئوية' : 'Percentage (%)') + '</option>';
+        html += '<option value="fixed"' + (item && item.type === 'fixed' ? ' selected' : '') + '>' + (isAr ? 'مبلغ ثابت' : 'Fixed Amount') + '</option>';
+        html += '</select></div>';
+        html += '<div class="form-group" style="flex:1"><label class="form-label">' + (isAr ? 'قيمة الخصم' : 'Discount Value') + ' *</label>';
+        html += '<input type="number" class="form-input" id="ds-m-discValue" value="' + (item ? item.value : '') + '" min="0" step="1" placeholder="' + (isAr ? 'أدخل القيمة' : 'Enter value') + '"></div>';
+        html += '</div>';
+        html += '<div class="form-group"><label class="form-label">' + (isAr ? 'الحالة' : 'Status') + '</label>';
+        html += '<select class="form-input" id="ds-m-discActive">';
+        html += '<option value="true"' + (!item || item.active !== false ? ' selected' : '') + '>' + (isAr ? 'نشط' : 'Active') + '</option>';
+        html += '<option value="false"' + (item && item.active === false ? ' selected' : '') + '>' + (isAr ? 'معطل' : 'Inactive') + '</option>';
+        html += '</select></div>';
       }
 
       body.innerHTML = html;
@@ -1616,6 +1771,28 @@
             this.state.floors.push(newItem);
             Nawa.Auth.apiFetch('/floors', { method: 'POST', body: { name: newItem.name, sortOrder: newItem.sortOrder } }).catch(function(){});
           }
+        } else if (m.type === 'discount') {
+          var name = (document.getElementById('ds-m-name') || {}).value || '';
+          var discType = (document.getElementById('ds-m-discType') || {}).value || 'percent';
+          var discValue = parseFloat((document.getElementById('ds-m-discValue') || {}).value) || 0;
+          var discActive = (document.getElementById('ds-m-discActive') || {}).value !== 'false';
+          if (!name.trim()) { if (errEl) { errEl.textContent = isAr ? 'اسم الخصم مطلوب' : 'Discount name is required'; errEl.classList.remove('hidden'); } return; }
+          if (discValue <= 0) { if (errEl) { errEl.textContent = isAr ? 'قيمة الخصم يجب أن تكون أكبر من صفر' : 'Discount value must be greater than zero'; errEl.classList.remove('hidden'); } return; }
+          if (discType === 'percent' && discValue > 100) { if (errEl) { errEl.textContent = isAr ? 'النسبة لا يمكن أن تتجاوز 100%' : 'Percentage cannot exceed 100%'; errEl.classList.remove('hidden'); } return; }
+          if (m.editId) {
+            var existing = this.state.discounts.find(function (d) { return d.id === m.editId; });
+            if (existing) {
+              existing.name = name.trim();
+              existing.type = discType;
+              existing.value = discValue;
+              existing.active = discActive;
+              Nawa.Auth.apiFetch('/discounts/' + existing.id, { method: 'PUT', body: { name: existing.name, type: existing.type, value: existing.value, active: existing.active } }).catch(function(){});
+            }
+          } else {
+            var newItem = { id: Date.now().toString(), name: name.trim(), type: discType, value: discValue, active: discActive, createdAt: new Date().toISOString() };
+            this.state.discounts.push(newItem);
+            Nawa.Auth.apiFetch('/discounts', { method: 'POST', body: { name: newItem.name, type: newItem.type, value: newItem.value, active: newItem.active } }).catch(function(){});
+          }
         }
 
         this.closeDsModal();
@@ -1651,6 +1828,9 @@
           await DB.hardDelete(S.FLOORS, id);
           this.state.floors = this.state.floors.filter(function (f) { return f.id !== id; });
           Nawa.Auth.apiFetch('/floors/' + id, { method: 'DELETE' }).catch(function(){});
+        } else if (type === 'discount') {
+          this.state.discounts = this.state.discounts.filter(function (d) { return d.id !== id; });
+          Nawa.Auth.apiFetch('/discounts/' + id, { method: 'DELETE' }).catch(function(){});
         }
         this.render();
         this.showNotification(isAr ? 'تم الحذف بنجاح' : 'Deleted successfully', 'success');
@@ -1828,6 +2008,9 @@
       if (order.tax) {
         html += '<div class="admin-order-modal-row"><span>' + t('tax_label_admin') + '</span><span>' + self.formatCurrency(order.tax) + '</span></div>';
       }
+      if (order.discountAmount > 0) {
+        html += '<div class="admin-order-modal-row" style="color:#16a34a;"><span>' + (isAr ? 'الخصم' : 'Discount') + ': ' + Admin._escapeHtml(order.discountName || '') + '</span><span>-' + self.formatCurrency(order.discountAmount) + '</span></div>';
+      }
       html += '<div class="admin-order-modal-row total"><span>' + t('total_label') + '</span><span>' + self.formatCurrency(order.total || 0) + '</span></div>';
       html += '<div class="admin-order-modal-row"><span>' + t('payment_method_label') + '</span><span>' + (order.paymentMethod === 'card' ? t('payment_card') : t('payment_cash_label')) + '</span></div>';
       html += '</div>';
@@ -1927,6 +2110,60 @@
       } catch (e) {
         if (errorEl) {
           errorEl.textContent = e.message || Nawa.I18n.t('employee_add_error');
+          errorEl.classList.remove('hidden');
+        }
+      }
+    },
+
+    async saveCustomer() {
+      var self = this;
+      var editId = this.state.customerModal.editId;
+      var name = (document.getElementById('admin-cust-name').value || '').trim();
+      var phone = (document.getElementById('admin-cust-phone').value || '').trim();
+      var notes = (document.getElementById('admin-cust-notes').value || '').trim();
+      var errorEl = document.getElementById('customer-error');
+
+      if (errorEl) errorEl.classList.add('hidden');
+
+      if (!name) {
+        if (errorEl) {
+          errorEl.textContent = Nawa.I18n.t('required_field');
+          errorEl.classList.remove('hidden');
+        }
+        return;
+      }
+
+      try {
+        var method = editId ? 'PUT' : 'POST';
+        var url = editId ? '/customers/' + editId : '/customers';
+        var response = await Nawa.Auth.apiFetch(url, {
+          method: method,
+          body: { name: name, phone: phone, notes: notes }
+        });
+
+        if (!response.ok) {
+          var errData = await response.json();
+          throw new Error(errData.error || Nawa.I18n.t('error_generic'));
+        }
+
+        var saved = await response.json();
+
+        if (editId) {
+          self.state.customers = (self.state.customers || []).map(function (c) {
+            return c.id === editId ? saved : c;
+          });
+        } else {
+          self.state.customers.push(saved);
+        }
+
+        var overlay = document.getElementById('customer-modal-overlay');
+        if (overlay) overlay.classList.add('hidden');
+        self.state.customerModal = { open: false, editId: null };
+        self.render();
+        self.showNotification(editId ? Nawa.I18n.t('success_save') : Nawa.I18n.t('success_save'), 'success');
+      } catch (e) {
+        if (errorEl) {
+          errorEl.textContent = e.message || Nawa.I18n.t('error_generic');
           errorEl.classList.remove('hidden');
         }
       }
@@ -2072,6 +2309,70 @@
       if (empModalCancel) empModalCancel.addEventListener('click', closeEmpModal);
       if (empModalOverlay) empModalOverlay.addEventListener('click', function (e) { if (e.target === empModalOverlay) closeEmpModal(); });
       if (empModalSave) empModalSave.addEventListener('click', function () { self.addEmployee(); });
+
+      var addCustBtn = document.getElementById('add-customer-btn');
+      if (addCustBtn) {
+        addCustBtn.addEventListener('click', function () {
+          self.state.customerModal = { open: true, editId: null };
+          var overlay = document.getElementById('customer-modal-overlay');
+          if (overlay) overlay.classList.remove('hidden');
+        });
+      }
+
+      var editCustBtns = document.querySelectorAll('[data-edit-customer]');
+      editCustBtns.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var cid = btn.getAttribute('data-edit-customer');
+          self.state.customerModal = { open: true, editId: cid };
+          var cust = (self.state.customers || []).find(function (c) { return c.id === cid; });
+          var overlay = document.getElementById('customer-modal-overlay');
+          if (overlay) overlay.classList.remove('hidden');
+          var titleEl = document.getElementById('customer-modal-title');
+          if (titleEl) titleEl.textContent = Nawa.I18n.t('edit');
+          var nameInput = document.getElementById('admin-cust-name');
+          var phoneInput = document.getElementById('admin-cust-phone');
+          var notesInput = document.getElementById('admin-cust-notes');
+          if (cust) {
+            if (nameInput) nameInput.value = cust.name || '';
+            if (phoneInput) phoneInput.value = cust.phone || '';
+            if (notesInput) notesInput.value = cust.notes || '';
+          }
+        });
+      });
+
+      var deleteCustBtns = document.querySelectorAll('[data-delete-customer]');
+      deleteCustBtns.forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+          var cid = btn.getAttribute('data-delete-customer');
+          if (!confirm((Nawa.I18n.getLang() === 'ar') ? 'هل أنت متأكد من حذف هذا العميل؟' : 'Are you sure you want to delete this customer?')) return;
+          try {
+            var res = await Nawa.Auth.apiFetch('/customers/' + cid, { method: 'DELETE' });
+            if (res.ok) {
+              self.state.customers = (self.state.customers || []).filter(function (c) { return c.id !== cid; });
+              self.render();
+              self.showNotification(Nawa.I18n.t('deleted'), 'success');
+            }
+          } catch (e) {
+            self.showNotification(Nawa.I18n.t('error_network'), 'error');
+          }
+        });
+      });
+
+      var custModalClose = document.getElementById('customer-modal-close');
+      var custModalCancel = document.getElementById('customer-modal-cancel');
+      var custModalOverlay = document.getElementById('customer-modal-overlay');
+      var custModalSave = document.getElementById('customer-modal-save');
+
+      var closeCustModal = function () {
+        var overlay = document.getElementById('customer-modal-overlay');
+        if (overlay) overlay.classList.add('hidden');
+        self.state.customerModal = { open: false, editId: null };
+      };
+
+      if (custModalClose) custModalClose.addEventListener('click', closeCustModal);
+      if (custModalCancel) custModalCancel.addEventListener('click', closeCustModal);
+      if (custModalOverlay) custModalOverlay.addEventListener('click', function (e) { if (e.target === custModalOverlay) closeCustModal(); });
+      if (custModalSave) custModalSave.addEventListener('click', function () { self.saveCustomer(); });
 
       if (this.state.activeTab === 'audit') {
         var dateFrom = document.getElementById('audit-date-from');

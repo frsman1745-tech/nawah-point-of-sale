@@ -133,6 +133,10 @@ const orderSchema = new mongoose.Schema({
   rcv: { type: Number, default: 0 },
   chg: { type: Number, default: 0 },
   m: { type: String, default: 'cash' },
+  discType: { type: String, enum: ['percent', 'fixed'], default: null },
+  discVal: { type: Number, default: 0 },
+  discAmt: { type: Number, default: 0 },
+  discName: { type: String, default: '' },
   createdAt: { type: Date, default: Date.now, index: true, expires: 7776000 }
 }, commonOpts);
 
@@ -207,7 +211,24 @@ const attendanceSchema = new mongoose.Schema({
   date: { type: String, index: true }
 }, commonOpts);
 
-let Restaurant, Registration, Order, AuditLog, Employee, Product, Cat, TableM, Floor, Attendance;
+const discountSchema = new mongoose.Schema({
+  restaurantId: { type: String, required: true, index: true },
+  name: { type: String, required: true },
+  type: { type: String, enum: ['percent', 'fixed'], default: 'percent' },
+  value: { type: Number, required: true },
+  active: { type: Boolean, default: true },
+  createdAt: { type: Date, default: Date.now }
+}, commonOpts);
+
+const customerSchema = new mongoose.Schema({
+  restaurantId: { type: String, required: true, index: true },
+  name: { type: String, required: true, trim: true },
+  phone: { type: String, trim: true },
+  notes: { type: String, trim: true },
+  createdAt: { type: Date, default: Date.now }
+}, commonOpts);
+
+let Restaurant, Registration, Order, AuditLog, Employee, Product, Cat, TableM, Floor, Attendance, Discount, Customer;
 
 function getModels() {
   if (!Restaurant) {
@@ -221,8 +242,10 @@ function getModels() {
     TableM = mongoose.models.TableM || mongoose.model('TableM', tableSchema);
     Floor = mongoose.models.Floor || mongoose.model('Floor', floorSchema);
     Attendance = mongoose.models.Attendance || mongoose.model('Attendance', attendanceSchema);
+    Discount = mongoose.models.Discount || mongoose.model('Discount', discountSchema);
+    Customer = mongoose.models.Customer || mongoose.model('Customer', customerSchema);
   }
-  return { Restaurant, Registration, Order, AuditLog, Employee, Product, Cat, TableM, Floor, Attendance };
+  return { Restaurant, Registration, Order, AuditLog, Employee, Product, Cat, TableM, Floor, Attendance, Discount, Customer };
 }
 
 // === Auth Middleware ===
@@ -259,6 +282,10 @@ function mapOrder(o) {
     subtotal: obj.sub,
     tax: obj.tax,
     total: obj.tot,
+    discountType: obj.discType || null,
+    discountValue: obj.discVal || 0,
+    discountAmount: obj.discAmt || 0,
+    discountName: obj.discName || '',
     amountReceived: obj.rcv,
     change: obj.chg,
     paymentMethod: obj.m,
@@ -820,12 +847,86 @@ app.post('/api/orders', authMiddleware, async (req, res) => {
       tot: Math.max(parseFloat(body.total) || 0, 0),
       rcv: Math.max(parseFloat(body.amountReceived) || 0, 0),
       chg: Math.max(parseFloat(body.change) || 0, 0),
-      m: ['cash', 'card', 'online'].includes(body.paymentMethod) ? body.paymentMethod : 'cash'
+      m: ['cash', 'card', 'online'].includes(body.paymentMethod) ? body.paymentMethod : 'cash',
+      discType: body.discountType || null,
+      discVal: Math.max(parseFloat(body.discountValue) || 0, 0),
+      discAmt: Math.max(parseFloat(body.discountAmount) || 0, 0),
+      discName: sanitizeStr(body.discountName, 100)
     };
     const order = new O(orderData);
     await order.save();
     res.json(mapOrder(order));
   } catch (e) { res.status(500).json({ error: 'Failed to create order' }); }
+});
+
+// === Discount Presets ===
+app.get('/api/discounts', authMiddleware, async (req, res) => {
+  try {
+    const { Discount: D } = getModels();
+    const filter = {};
+    if (req.user.role !== 'super_admin' && req.user.restaurantId) filter.restaurantId = req.user.restaurantId;
+    if (req.query.all === 'true' && req.user.role === 'super_admin') delete filter.restaurantId;
+    const items = await D.find(filter).sort({ createdAt: -1 }).lean();
+    res.json(items.map(i => ({ ...i, id: i._id.toString() })));
+  } catch (e) { res.status(500).json({ error: 'Failed to fetch discounts' }); }
+});
+
+app.post('/api/discounts', authMiddleware, adminOrAbove, async (req, res) => {
+  try {
+    const { Discount: D } = getModels();
+    if (!req.user.restaurantId && req.user.role !== 'super_admin') return res.status(403).json({ error: 'No restaurant associated' });
+    const b = req.body;
+    const name = sanitizeStr(b.name, 100);
+    const type = ['percent', 'fixed'].includes(b.type) ? b.type : 'percent';
+    const value = Math.max(parseFloat(b.value) || 0, 0);
+    if (!name || value <= 0) return res.status(400).json({ error: 'Name and positive value are required' });
+    if (type === 'percent' && value > 100) return res.status(400).json({ error: 'Percent cannot exceed 100' });
+    const item = new D({
+      restaurantId: req.user.restaurantId || sanitizeStr(b.restaurantId, 50),
+      name,
+      type,
+      value,
+      active: b.active !== false
+    });
+    await item.save();
+    res.json({ ...item.toObject(), id: item._id.toString() });
+  } catch (e) { res.status(500).json({ error: 'Failed to create discount' }); }
+});
+
+app.put('/api/discounts/:id', authMiddleware, adminOrAbove, async (req, res) => {
+  try {
+    const { Discount: D } = getModels();
+    const item = await D.findById(req.params.id);
+    if (!item) return res.status(404).json({ error: 'Discount not found' });
+    if (req.user.role !== 'super_admin' && item.restaurantId !== req.user.restaurantId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    const b = req.body;
+    const allowed = {};
+    if (b.name !== undefined) allowed.name = sanitizeStr(b.name, 100);
+    if (b.type !== undefined && ['percent', 'fixed'].includes(b.type)) allowed.type = b.type;
+    if (b.value !== undefined) {
+      const v = Math.max(parseFloat(b.value) || 0, 0);
+      if (b.type === 'percent' && v > 100) return res.status(400).json({ error: 'Percent cannot exceed 100' });
+      allowed.value = v;
+    }
+    if (b.active !== undefined && typeof b.active === 'boolean') allowed.active = b.active;
+    const updated = await D.findByIdAndUpdate(req.params.id, allowed, { new: true });
+    res.json({ ...updated.toObject(), id: updated._id.toString() });
+  } catch (e) { res.status(500).json({ error: 'Failed to update discount' }); }
+});
+
+app.delete('/api/discounts/:id', authMiddleware, adminOrAbove, async (req, res) => {
+  try {
+    const { Discount: D } = getModels();
+    const item = await D.findById(req.params.id);
+    if (!item) return res.status(404).json({ error: 'Discount not found' });
+    if (req.user.role !== 'super_admin' && item.restaurantId !== req.user.restaurantId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    await D.findByIdAndDelete(req.params.id);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: 'Failed to delete discount' }); }
 });
 
 // === Audit Log ===
@@ -1290,6 +1391,138 @@ app.put('/api/attendance/:id/clock-out', authMiddleware, async (req, res) => {
     await item.save();
     res.json({ ...item.toObject(), id: item._id.toString() });
   } catch (e) { res.status(500).json({ error: 'Failed to clock out' }); }
+});
+
+// === Customers ===
+app.get('/api/customers', authMiddleware, async (req, res) => {
+  try {
+    const { Customer: C, Order: O } = getModels();
+    const filter = {};
+    if (req.user.restaurantId) filter.restaurantId = req.user.restaurantId;
+    if (req.query.search) {
+      const q = sanitizeStr(req.query.search, 100);
+      filter.$or = [
+        { name: { $regex: q, $options: 'i' } },
+        { phone: { $regex: q, $options: 'i' } }
+      ];
+    }
+    const customers = await C.find(filter).sort({ createdAt: -1 }).lean();
+
+    const orderFilter = {};
+    if (req.user.restaurantId) orderFilter.restaurantId = req.user.restaurantId;
+    const orders = await O.find(orderFilter).lean();
+    const statsMap = {};
+    for (const order of orders) {
+      if (!order.cid) continue;
+      if (!statsMap[order.cid]) statsMap[order.cid] = { orderCount: 0, totalSpent: 0, lastVisit: null };
+      statsMap[order.cid].orderCount++;
+      statsMap[order.cid].totalSpent += order.tot || 0;
+      const oDate = new Date(order.createdAt);
+      if (!statsMap[order.cid].lastVisit || oDate > statsMap[order.cid].lastVisit) {
+        statsMap[order.cid].lastVisit = oDate;
+      }
+    }
+
+    res.json(customers.map(c => ({
+      id: c._id?.toString() || c.id,
+      restaurantId: c.restaurantId,
+      name: c.name,
+      phone: c.phone,
+      notes: c.notes,
+      createdAt: c.createdAt,
+      orderCount: (statsMap[c._id?.toString()] || {}).orderCount || 0,
+      totalSpent: (statsMap[c._id?.toString()] || {}).totalSpent || 0,
+      lastVisit: (statsMap[c._id?.toString()] || {}).lastVisit || null
+    })));
+  } catch (e) { res.status(500).json({ error: 'Failed to fetch customers' }); }
+});
+
+app.get('/api/customers/:id', authMiddleware, async (req, res) => {
+  try {
+    const { Customer: C, Order: O } = getModels();
+    const customer = await C.findById(req.params.id).lean();
+    if (!customer) return res.status(404).json({ error: 'Customer not found' });
+
+    const orderFilter = { cid: req.params.id };
+    if (req.user.restaurantId) orderFilter.restaurantId = req.user.restaurantId;
+    const orders = await O.find(orderFilter).sort({ createdAt: -1 }).limit(100).lean();
+
+    let totalSpent = 0;
+    orders.forEach(o => { totalSpent += o.tot || 0; });
+
+    res.json({
+      id: customer._id?.toString() || customer.id,
+      restaurantId: customer.restaurantId,
+      name: customer.name,
+      phone: customer.phone,
+      notes: customer.notes,
+      createdAt: customer.createdAt,
+      orderCount: orders.length,
+      totalSpent: totalSpent,
+      lastVisit: orders.length > 0 ? orders[0].createdAt : null,
+      orders: orders.map(o => ({
+        id: o._id?.toString() || o.id,
+        total: o.tot,
+        items: (o.items || []).map(i => ({
+          productId: i.p, name: i.p, price: i.pr, quantity: i.q, subtotal: (i.pr || 0) * (i.q || 1)
+        })),
+        status: 'paid',
+        createdAt: o.createdAt
+      }))
+    });
+  } catch (e) { res.status(500).json({ error: 'Failed to fetch customer' }); }
+});
+
+app.post('/api/customers', authMiddleware, async (req, res) => {
+  try {
+    const { Customer: C } = getModels();
+    if (!req.user.restaurantId) return res.status(403).json({ error: 'No restaurant associated' });
+    const b = req.body;
+    const name = sanitizeStr(b.name, 100);
+    if (!name) return res.status(400).json({ error: 'Customer name is required' });
+
+    const customer = new C({
+      restaurantId: req.user.restaurantId,
+      name: name,
+      phone: sanitizeStr(b.phone, 30),
+      notes: sanitizeStr(b.notes, 500)
+    });
+    await customer.save();
+    res.json({ id: customer._id.toString(), name: customer.name, phone: customer.phone, notes: customer.notes, createdAt: customer.createdAt });
+  } catch (e) { res.status(500).json({ error: 'Failed to create customer' }); }
+});
+
+app.put('/api/customers/:id', authMiddleware, async (req, res) => {
+  try {
+    const { Customer: C } = getModels();
+    const customer = await C.findById(req.params.id);
+    if (!customer) return res.status(404).json({ error: 'Customer not found' });
+    if (req.user.role !== 'super_admin' && customer.restaurantId !== req.user.restaurantId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    const b = req.body;
+    const allowed = {};
+    if (b.name !== undefined) allowed.name = sanitizeStr(b.name, 100);
+    if (b.phone !== undefined) allowed.phone = sanitizeStr(b.phone, 30);
+    if (b.notes !== undefined) allowed.notes = sanitizeStr(b.notes, 500);
+    if (!allowed.name && allowed.name !== '') delete allowed.name;
+
+    const updated = await C.findByIdAndUpdate(req.params.id, allowed, { new: true });
+    res.json({ id: updated._id.toString(), name: updated.name, phone: updated.phone, notes: updated.notes, createdAt: updated.createdAt });
+  } catch (e) { res.status(500).json({ error: 'Failed to update customer' }); }
+});
+
+app.delete('/api/customers/:id', authMiddleware, async (req, res) => {
+  try {
+    const { Customer: C } = getModels();
+    const customer = await C.findById(req.params.id);
+    if (!customer) return res.status(404).json({ error: 'Customer not found' });
+    if (req.user.role !== 'super_admin' && customer.restaurantId !== req.user.restaurantId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    await C.findByIdAndDelete(req.params.id);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: 'Failed to delete customer' }); }
 });
 
 module.exports = app;

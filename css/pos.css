@@ -398,6 +398,38 @@ body[dir="ltr"] .pos-cart-panel {
   border-top: 2px dashed var(--border);
 }
 
+/* ===== Discount ===== */
+.pos-discount-btn {
+  border: 2px dashed var(--border) !important;
+  color: var(--text-secondary);
+  transition: all 0.2s;
+}
+.pos-discount-btn:hover {
+  border-color: var(--navy) !important;
+  color: var(--navy);
+  background: rgba(14, 28, 61, 0.04);
+}
+.pos-discount-display {
+  color: #16a34a !important;
+  font-weight: 600;
+}
+.pos-discount-modal .modal {
+  max-width: 500px;
+  width: 90%;
+}
+.pos-discount-preset-btn:hover {
+  border-color: var(--navy) !important;
+  background: rgba(14, 28, 61, 0.06);
+  transform: translateY(-1px);
+}
+.pos-discount-preset-btn:active {
+  transform: scale(0.97);
+}
+.pos-discount-actions {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
 /* ===== Cart Actions ===== */
 .pos-cart-actions {
   padding: 12px 20px 16px;
@@ -1292,6 +1324,103 @@ body[dir="ltr"] .pos-cart-panel {
 .pos-toast-warning {
   background: var(--warning, #f59e0b);
   color: #fff;
+}
+
+/* ===== Customer Modal ===== */
+.pos-customer-btn {
+  position: relative;
+}
+.pos-customer-btn.pos-customer-selected {
+  background: var(--primary, #2563eb);
+  color: #fff;
+}
+.pos-customer-btn.pos-customer-selected:hover {
+  background: var(--primary-dark, #1d4ed8);
+  color: #fff;
+}
+.pos-customer-modal {
+  max-width: 480px;
+  width: 90vw;
+}
+.pos-customer-list {
+  max-height: 350px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0;
+}
+.pos-customer-card {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.pos-customer-card:hover {
+  border-color: var(--primary, #2563eb);
+  background: var(--primary-light, rgba(37,99,235,0.05));
+}
+.pos-customer-card.pos-customer-selected {
+  border-color: var(--primary, #2563eb);
+  background: var(--primary-light, rgba(37,99,235,0.08));
+}
+.pos-customer-card-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+.pos-customer-card-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--primary, #2563eb);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+}
+.pos-customer-card-info {
+  flex: 1;
+  min-width: 0;
+}
+.pos-customer-card-name {
+  font-weight: 600;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pos-customer-card-phone {
+  font-size: 0.75rem;
+  color: var(--text-muted, #6b7280);
+  direction: ltr;
+  text-align: right;
+}
+.pos-customer-card-stats {
+  font-size: 0.75rem;
+  color: var(--text-muted, #6b7280);
+  margin-top: 2px;
+}
+.pos-customer-card-stat {
+  margin-inline-end: 10px;
+}
+.pos-customer-search-input {
+  width: 100%;
+  margin-bottom: 4px;
+}
+.pos-customer-empty {
+  text-align: center;
+  padding: 24px 12px;
+  color: var(--text-muted, #6b7280);
+  font-size: 0.875rem;
 }
 
 @media (max-width: 768px) {
