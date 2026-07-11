@@ -4,6 +4,11 @@
   var S = CFG.STORES;
 
   var Admin = {
+    _escapeHtml: function (str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    },
+
     state: {
       orders: [],
       tables: [],
@@ -476,10 +481,10 @@
           html += '<tr>';
           html += '<td><span class="admin-order-clickable" data-order-id="' + order.id + '">' + order.id.slice(-6).toUpperCase() + '</span></td>';
           html += '<td>' + Admin.formatTime(order.createdAt) + '</td>';
-          html += '<td>' + (order.tableNumber || order.tableId || '--') + '</td>';
+          html += '<td>' + Admin._escapeHtml(order.tableNumber || order.tableId || '--') + '</td>';
           html += '<td>' + itemCount + '</td>';
           html += '<td style="font-weight:600">' + Admin.formatCurrency(order.total) + '</td>';
-          html += '<td>' + empName + '</td>';
+          html += '<td>' + Admin._escapeHtml(empName) + '</td>';
           html += '<td><span class="admin-order-status ' + statusClass + '"><span class="admin-order-status-dot"></span>' + statusLabel + '</span></td>';
           html += '</tr>';
         });
@@ -670,8 +675,8 @@
         html += '<div class="admin-employee-header">';
         html += '<div class="admin-employee-avatar">' + initial + '</div>';
         html += '<div class="admin-employee-info">';
-        html += '<div class="admin-employee-name">' + (emp.name || emp.nameEn || '--') + '</div>';
-        html += '<div class="admin-employee-role">' + roleLabel + ' - @' + (emp.username || '') + '</div>';
+        html += '<div class="admin-employee-name">' + self._escapeHtml(emp.name || emp.nameEn || '--') + '</div>';
+        html += '<div class="admin-employee-role">' + self._escapeHtml(roleLabel) + ' - @' + self._escapeHtml(emp.username || '') + '</div>';
         html += '</div>';
         html += '<span class="admin-employee-status ' + statusClass + '"><span class="admin-employee-status-dot"></span>' + statusLabel + '</span>';
         html += '</div>';
@@ -702,7 +707,7 @@
       html += '<div class="form-group"><label>' + Nawa.I18n.t('employee_username') + ' *</label>';
       html += '<input type="text" class="form-input" id="emp-username" placeholder="' + Nawa.I18n.t('employee_username') + '" dir="ltr" autocomplete="off"></div>';
       html += '<div class="form-group"><label>' + Nawa.I18n.t('employee_password') + ' *</label>';
-      html += '<input type="text" class="form-input" id="emp-password" placeholder="' + Nawa.I18n.t('employee_password') + '" dir="ltr" autocomplete="off"></div>';
+      html += '<input type="password" class="form-input" id="emp-password" placeholder="' + Nawa.I18n.t('employee_password') + '" dir="ltr" autocomplete="off"></div>';
       html += '<div class="form-group"><label>' + Nawa.I18n.t('employee_role') + '</label>';
       html += '<select class="form-input" id="emp-role">';
       html += '<option value="cashier">' + Nawa.I18n.t('role_cashier') + '</option>';
@@ -859,15 +864,15 @@
 
       html += '<div style="display:flex;justify-content:space-between;margin-bottom:12px">';
       html += '<div><strong>' + t('time') + ':</strong> ' + self.formatDate(order.createdAt) + ' ' + self.formatTime(order.createdAt) + '</div>';
-      html += '<div><strong>' + t('table') + ':</strong> ' + (order.tableNumber || order.tableId || '--') + '</div>';
+      html += '<div><strong>' + t('table') + ':</strong> ' + self._escapeHtml(order.tableNumber || order.tableId || '--') + '</div>';
       html += '</div>';
-      html += '<div style="margin-bottom:16px"><strong>' + t('employee') + ':</strong> ' + empName + '</div>';
+      html += '<div style="margin-bottom:16px"><strong>' + t('employee') + ':</strong> ' + self._escapeHtml(empName) + '</div>';
 
       if (order.items && order.items.length > 0) {
         html += '<div class="admin-order-modal-items">';
         order.items.forEach(function (item) {
           html += '<div class="admin-order-modal-item">';
-          html += '<span class="admin-order-modal-item-name">' + (item.name || t('item_name')) + '</span>';
+          html += '<span class="admin-order-modal-item-name">' + self._escapeHtml(item.name || t('item_name')) + '</span>';
           html += '<span class="admin-order-modal-item-qty">× ' + (item.qty || 1) + '</span>';
           html += '<span class="admin-order-modal-item-price">' + self.formatCurrency((item.price || 0) * (item.qty || 1)) + '</span>';
           html += '</div>';
@@ -959,22 +964,26 @@
       }
 
       try {
-        var user = window.Nawa.Auth.getCurrentUser();
-        var newEmp = {
-          name: name,
-          nameEn: nameEn || name,
-          username: username,
-          password: password,
-          role: role || 'cashier',
-          isActive: true,
-          restaurantId: user ? user.restaurantId : '',
-          createdAt: new Date().toISOString()
-        };
+        var response = await Nawa.Auth.apiFetch('/employees', {
+          method: 'POST',
+          body: {
+            name: name,
+            nameEn: nameEn || name,
+            username: username,
+            password: password,
+            role: role || 'cashier'
+          }
+        });
 
-        await DB.add(S.EMPLOYEES, newEmp);
+        if (!response.ok) {
+          var errData = await response.json();
+          throw new Error(errData.error || Nawa.I18n.t('employee_add_error'));
+        }
+
+        var saved = await response.json();
 
         if (window.Nawa.Audit && window.Nawa.Audit.log) {
-          await window.Nawa.Audit.log('add', 'employees', null, { name: name, username: username, role: role });
+          await window.Nawa.Audit.log('add', 'employees', saved.id, { name: name, username: username, role: role });
         }
 
         this.showNotification(Nawa.I18n.t('employee_added'), 'success');
@@ -1046,7 +1055,7 @@
       else if (type === 'error') icon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
       else if (type === 'warning') icon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
 
-      toast.innerHTML = icon + '<span>' + message + '</span>';
+      toast.innerHTML = icon + '<span>' + this._escapeHtml(message) + '</span>';
       container.appendChild(toast);
 
       setTimeout(function () {

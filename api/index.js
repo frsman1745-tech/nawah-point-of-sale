@@ -2,15 +2,39 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 
 const app = express();
-app.use(cors({ origin: true, credentials: true }));
+
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'https://nawah-point-of-sale.vercel.app';
+app.use(cors({
+  origin: function (origin, cb) {
+    if (!origin || origin === ALLOWED_ORIGIN || origin.endsWith('.vercel.app')) return cb(null, true);
+    return cb(null, false);
+  },
+  credentials: true
+}));
 app.use(express.json({ limit: '1mb' }));
 
-const JWT_SECRET = process.env.JWT_SECRET || 'nawa-pos-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET;
 const MONGODB_URI = process.env.MONGODB_URI;
-const SUPER_ADMIN_USER = process.env.SUPER_ADMIN_USERNAME || 'superadmin';
-const SUPER_ADMIN_PASS = process.env.SUPER_ADMIN_PASSWORD || 'super123';
+const SUPER_ADMIN_USER = process.env.SUPER_ADMIN_USERNAME;
+const SUPER_ADMIN_PASS = process.env.SUPER_ADMIN_PASSWORD;
+
+if (!JWT_SECRET || JWT_SECRET.length < 32) {
+  console.error('FATAL: JWT_SECRET must be set and >= 32 chars');
+  process.exit(1);
+}
+if (!MONGODB_URI) {
+  console.error('FATAL: MONGODB_URI must be set');
+  process.exit(1);
+}
+if (!SUPER_ADMIN_USER || !SUPER_ADMIN_PASS) {
+  console.error('FATAL: SUPER_ADMIN_USERNAME and SUPER_ADMIN_PASSWORD must be set');
+  process.exit(1);
+}
+
+const BCRYPT_ROUNDS = 12;
 
 let cached = global._mongoose;
 if (!cached) cached = global._mongoose = { conn: null, promise: null };
@@ -29,6 +53,36 @@ async function ensureDB(req, res, next) {
   catch (e) { console.error('DB connection error:', e); res.status(500).json({ error: 'Database connection failed' }); }
 }
 app.use(ensureDB);
+
+// === Rate Limiting (in-memory) ===
+
+const loginAttempts = {};
+function rateLimit(windowMs, maxAttempts) {
+  return function (req, res, next) {
+    const ip = req.ip || req.connection.remoteAddress || 'unknown';
+    const key = req.path + ':' + ip;
+    const now = Date.now();
+    if (!loginAttempts[key] || loginAttempts[key].resetAt < now) {
+      loginAttempts[key] = { count: 1, resetAt: now + windowMs };
+      return next();
+    }
+    loginAttempts[key].count++;
+    if (loginAttempts[key].count > maxAttempts) {
+      return res.status(429).json({ error: 'Too many attempts. Try again later.' });
+    }
+    next();
+  };
+}
+
+setInterval(function () {
+  const now = Date.now();
+  for (const key in loginAttempts) {
+    if (loginAttempts[key].resetAt < now) delete loginAttempts[key];
+  }
+}, 60000);
+
+const authRateLimit = rateLimit(60 * 1000, 10);
+const regRateLimit = rateLimit(60 * 60 * 1000, 5);
 
 const commonOpts = { versionKey: false, minimize: true, strict: true };
 
@@ -96,6 +150,8 @@ const employeeSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now }
 }, commonOpts);
+
+employeeSchema.index({ restaurantId: 1, username: 1 }, { unique: true });
 
 let Restaurant, Registration, Order, AuditLog, Employee;
 
@@ -183,12 +239,17 @@ function mapRegistration(r) {
   };
 }
 
+function sanitizeStr(val, maxLen) {
+  if (typeof val !== 'string') return '';
+  return val.trim().slice(0, maxLen || 200);
+}
+
 // === Routes ===
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', version: '3.0.0' }));
 
 // --- Auth: Super Admin (env vars) ---
-app.post('/api/auth/super-login', (req, res) => {
+app.post('/api/auth/super-login', authRateLimit, (req, res) => {
   try {
     const { username, password } = req.body;
     if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
@@ -204,18 +265,18 @@ app.post('/api/auth/super-login', (req, res) => {
 });
 
 // --- Auth: Admin (email + password from Registration collection) ---
-app.post('/api/auth/admin-login', async (req, res) => {
+app.post('/api/auth/admin-login', authRateLimit, async (req, res) => {
   try {
     const { Restaurant: R, Registration: Reg } = getModels();
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
-    // Find approved registration
     const reg = await Reg.findOne({ email: email.toLowerCase().trim(), status: 'approved' }).select('+password');
     if (!reg) return res.status(401).json({ error: 'Invalid email or password' });
-    if (reg.password !== password) return res.status(401).json({ error: 'Invalid email or password' });
 
-    // Find associated restaurant
+    const valid = await bcrypt.compare(password, reg.password);
+    if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
+
     const restaurant = await R.findOne({ email: email.toLowerCase().trim() });
     const restaurantId = restaurant ? restaurant._id.toString() : null;
 
@@ -225,7 +286,7 @@ app.post('/api/auth/admin-login', async (req, res) => {
       name: reg.ownerName,
       restaurantId: restaurantId,
       role: 'admin'
-    }, JWT_SECRET, { expiresIn: '720h' }); // 30 days for admin
+    }, JWT_SECRET, { expiresIn: '24h' });
 
     res.json({
       token,
@@ -244,32 +305,38 @@ app.post('/api/auth/admin-login', async (req, res) => {
 });
 
 // --- Auth: Cashier (password only) ---
-app.post('/api/auth/cashier-login', async (req, res) => {
+app.post('/api/auth/cashier-login', authRateLimit, async (req, res) => {
   try {
     const { Employee: E } = getModels();
     const { password } = req.body;
     if (!password) return res.status(400).json({ error: 'Password required' });
 
-    // Find active cashier with matching password (password = employee access code)
-    const employee = await E.findOne({ password: password, isActive: true, role: 'cashier' }).select('+password');
-    if (!employee) return res.status(401).json({ error: 'Invalid password' });
+    const employees = await E.find({ isActive: true, role: 'cashier' }).select('+password');
+    let matched = null;
+    for (const emp of employees) {
+      if (await bcrypt.compare(password, emp.password)) {
+        matched = emp;
+        break;
+      }
+    }
+    if (!matched) return res.status(401).json({ error: 'Invalid password' });
 
     const token = jwt.sign({
-      id: employee._id.toString(),
-      restaurantId: employee.restaurantId,
+      id: matched._id.toString(),
+      restaurantId: matched.restaurantId,
       role: 'cashier',
-      name: employee.name || employee.username
+      name: matched.name || matched.username
     }, JWT_SECRET, { expiresIn: '8h' });
 
     res.json({
       token,
       user: {
-        id: employee._id.toString(),
-        restaurantId: employee.restaurantId,
+        id: matched._id.toString(),
+        restaurantId: matched.restaurantId,
         role: 'cashier',
-        name: employee.name,
-        nameEn: employee.nameEn,
-        username: employee.username
+        name: matched.name,
+        nameEn: matched.nameEn,
+        username: matched.username
       }
     });
   } catch (e) {
@@ -279,36 +346,45 @@ app.post('/api/auth/cashier-login', async (req, res) => {
 });
 
 // --- Legacy login (for backwards compatibility) ---
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authRateLimit, async (req, res) => {
   try {
     const { Employee: E } = getModels();
     const { username, password } = req.body;
+
+    if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
 
     if (username === SUPER_ADMIN_USER && password === SUPER_ADMIN_PASS) {
       const token = jwt.sign({ role: 'super_admin', name: 'مدير النظام', id: 'superadmin' }, JWT_SECRET, { expiresIn: '8h' });
       return res.json({ token, user: { role: 'super_admin', name: 'مدير النظام', id: 'superadmin' } });
     }
 
-    const employee = await E.findOne({ username, password });
-    if (!employee) return res.status(401).json({ error: 'Invalid credentials' });
-    if (!employee.isActive) return res.status(401).json({ error: 'Account is disabled' });
+    const employees = await E.find({ username }).select('+password');
+    let matched = null;
+    for (const emp of employees) {
+      if (await bcrypt.compare(password, emp.password)) {
+        matched = emp;
+        break;
+      }
+    }
+    if (!matched) return res.status(401).json({ error: 'Invalid credentials' });
+    if (!matched.isActive) return res.status(401).json({ error: 'Account is disabled' });
 
     const token = jwt.sign({
-      id: employee._id.toString(),
-      restaurantId: employee.restaurantId,
-      role: employee.role,
-      name: employee.name
+      id: matched._id.toString(),
+      restaurantId: matched.restaurantId,
+      role: matched.role,
+      name: matched.name
     }, JWT_SECRET, { expiresIn: '8h' });
 
     res.json({
       token,
       user: {
-        id: employee._id.toString(),
-        restaurantId: employee.restaurantId,
-        role: employee.role,
-        name: employee.name,
-        nameEn: employee.nameEn,
-        username: employee.username
+        id: matched._id.toString(),
+        restaurantId: matched.restaurantId,
+        role: matched.role,
+        name: matched.name,
+        nameEn: matched.nameEn,
+        username: matched.username
       }
     });
   } catch (e) {
@@ -318,7 +394,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // === Registration (public) ===
-app.post('/api/register', async (req, res) => {
+app.post('/api/register', regRateLimit, async (req, res) => {
   try {
     const { Registration: Reg } = getModels();
     const { restaurantName, ownerName, email, phone, password } = req.body;
@@ -330,21 +406,22 @@ app.post('/api/register', async (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
 
-    // Check duplicate email
     const existing = await Reg.findOne({ email: email.toLowerCase().trim() });
     if (existing) return res.status(409).json({ error: 'Email already registered' });
 
+    const hashed = await bcrypt.hash(password, BCRYPT_ROUNDS);
+
     const registration = new Reg({
-      restaurantName: restaurantName.trim(),
-      ownerName: ownerName.trim(),
+      restaurantName: sanitizeStr(restaurantName, 100),
+      ownerName: sanitizeStr(ownerName, 100),
       email: email.toLowerCase().trim(),
-      phone: (phone || '').trim(),
-      password: password,
+      phone: sanitizeStr(phone, 20),
+      password: hashed,
       status: 'pending'
     });
     await registration.save();
 
-    res.json({ ok: true, message: 'Registration submitted. Waiting for approval.', id: registration._id.toString() });
+    res.json({ ok: true, message: 'Registration submitted. Waiting for approval.' });
   } catch (e) {
     console.error('Registration error:', e);
     res.status(500).json({ error: 'Registration failed' });
@@ -369,19 +446,17 @@ app.put('/api/registrations/:id/approve', authMiddleware, superAdminOnly, async 
     if (!reg) return res.status(404).json({ error: 'Registration not found' });
     if (reg.status !== 'pending') return res.status(400).json({ error: 'Registration already reviewed' });
 
-    // Create restaurant
     const restaurant = new R({
-      name: reg.restaurantName,
-      owner: reg.ownerName,
+      name: sanitizeStr(reg.restaurantName, 100),
+      owner: sanitizeStr(reg.ownerName, 100),
       email: reg.email,
-      phone: reg.phone,
+      phone: sanitizeStr(reg.phone, 20),
       status: 'active',
       plan: 'basic',
       startDate: new Date().toISOString().split('T')[0]
     });
     await restaurant.save();
 
-    // Create admin employee for the restaurant
     const adminEmployee = new E({
       restaurantId: restaurant._id.toString(),
       name: reg.ownerName,
@@ -392,7 +467,6 @@ app.put('/api/registrations/:id/approve', authMiddleware, superAdminOnly, async 
     });
     await adminEmployee.save();
 
-    // Update registration status
     reg.status = 'approved';
     reg.reviewedAt = new Date();
     await reg.save();
@@ -416,7 +490,7 @@ app.put('/api/registrations/:id/reject', authMiddleware, superAdminOnly, async (
     if (reg.status !== 'pending') return res.status(400).json({ error: 'Registration already reviewed' });
 
     reg.status = 'rejected';
-    reg.rejectReason = (req.body.reason || '').trim();
+    reg.rejectReason = sanitizeStr(req.body.reason, 500);
     reg.reviewedAt = new Date();
     await reg.save();
 
@@ -439,7 +513,18 @@ app.get('/api/restaurants', authMiddleware, superAdminOnly, async (req, res) => 
 app.post('/api/restaurants', authMiddleware, superAdminOnly, async (req, res) => {
   try {
     const { Restaurant: R } = getModels();
-    const restaurant = new R(req.body);
+    const b = req.body;
+    const restaurant = new R({
+      name: sanitizeStr(b.name, 100),
+      owner: sanitizeStr(b.owner, 100),
+      phone: sanitizeStr(b.phone, 20),
+      email: sanitizeStr(b.email, 100),
+      plan: ['basic', 'medium', 'advanced'].includes(b.plan) ? b.plan : 'basic',
+      status: ['active', 'suspended', 'inactive'].includes(b.status) ? b.status : 'active',
+      startDate: sanitizeStr(b.startDate, 20),
+      endDate: sanitizeStr(b.endDate, 20),
+      revenue: typeof b.revenue === 'number' ? b.revenue : 0
+    });
     await restaurant.save();
     res.json({ ...restaurant.toObject(), id: restaurant._id.toString() });
   } catch (e) { res.status(500).json({ error: 'Failed to create restaurant' }); }
@@ -448,7 +533,19 @@ app.post('/api/restaurants', authMiddleware, superAdminOnly, async (req, res) =>
 app.put('/api/restaurants/:id', authMiddleware, superAdminOnly, async (req, res) => {
   try {
     const { Restaurant: R } = getModels();
-    const restaurant = await R.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const b = req.body;
+    const allowed = {};
+    if (b.name !== undefined) allowed.name = sanitizeStr(b.name, 100);
+    if (b.owner !== undefined) allowed.owner = sanitizeStr(b.owner, 100);
+    if (b.phone !== undefined) allowed.phone = sanitizeStr(b.phone, 20);
+    if (b.email !== undefined) allowed.email = sanitizeStr(b.email, 100);
+    if (b.plan !== undefined && ['basic', 'medium', 'advanced'].includes(b.plan)) allowed.plan = b.plan;
+    if (b.status !== undefined && ['active', 'suspended', 'inactive'].includes(b.status)) allowed.status = b.status;
+    if (b.startDate !== undefined) allowed.startDate = sanitizeStr(b.startDate, 20);
+    if (b.endDate !== undefined) allowed.endDate = sanitizeStr(b.endDate, 20);
+    if (b.revenue !== undefined && typeof b.revenue === 'number') allowed.revenue = b.revenue;
+
+    const restaurant = await R.findByIdAndUpdate(req.params.id, allowed, { new: true });
     if (!restaurant) return res.status(404).json({ error: 'Restaurant not found' });
     res.json({ ...restaurant.toObject(), id: restaurant._id.toString() });
   } catch (e) { res.status(500).json({ error: 'Failed to update restaurant' }); }
@@ -545,17 +642,24 @@ app.post('/api/orders', authMiddleware, async (req, res) => {
   try {
     const { Order: O } = getModels();
     const body = req.body;
+
+    if (!req.user.restaurantId) return res.status(403).json({ error: 'No restaurant associated' });
+
     const orderData = {
-      restaurantId: req.user.restaurantId || body.restaurantId,
-      tableId: body.tableId,
-      employeeId: body.employeeId,
-      items: (body.items || []).map(i => ({ p: i.name || i.productId, q: i.quantity, pr: i.price })),
-      sub: body.subtotal,
-      tax: body.tax,
-      tot: body.total,
-      rcv: body.amountReceived,
-      chg: body.change,
-      m: body.paymentMethod || 'cash'
+      restaurantId: req.user.restaurantId,
+      tableId: sanitizeStr(body.tableId, 50),
+      employeeId: sanitizeStr(body.employeeId, 50),
+      items: Array.isArray(body.items) ? body.items.slice(0, 100).map(i => ({
+        p: sanitizeStr(i.name || i.productId, 100),
+        q: Math.min(Math.max(parseInt(i.quantity) || 1, 1), 9999),
+        pr: Math.max(parseFloat(i.price) || 0, 0)
+      })) : [],
+      sub: Math.max(parseFloat(body.subtotal) || 0, 0),
+      tax: Math.max(parseFloat(body.tax) || 0, 0),
+      tot: Math.max(parseFloat(body.total) || 0, 0),
+      rcv: Math.max(parseFloat(body.amountReceived) || 0, 0),
+      chg: Math.max(parseFloat(body.change) || 0, 0),
+      m: ['cash', 'card', 'online'].includes(body.paymentMethod) ? body.paymentMethod : 'cash'
     };
     const order = new O(orderData);
     await order.save();
@@ -580,15 +684,18 @@ app.post('/api/audit', authMiddleware, async (req, res) => {
   try {
     const { AuditLog: AL } = getModels();
     const b = req.body;
+
+    if (!req.user.restaurantId) return res.status(403).json({ error: 'No restaurant associated' });
+
     const logData = {
-      restaurantId: req.user.restaurantId || b.restaurantId,
-      userId: b.userId,
-      action: b.action,
-      store: b.store,
-      rid: b.recordId,
+      restaurantId: req.user.restaurantId,
+      userId: sanitizeStr(b.userId, 50),
+      action: sanitizeStr(b.action, 50),
+      store: sanitizeStr(b.store, 50),
+      rid: sanitizeStr(b.recordId, 50),
       d: b.data,
-      hash: b.hash,
-      ph: b.previousHash
+      hash: sanitizeStr(b.hash, 200),
+      ph: sanitizeStr(b.previousHash, 200)
     };
     const log = new AL(logData);
     await log.save();
@@ -629,37 +736,96 @@ app.get('/api/employees', authMiddleware, async (req, res) => {
     const { Employee: E } = getModels();
     const filter = {};
     if (req.user.restaurantId) filter.restaurantId = req.user.restaurantId;
+    if (req.query.all === 'true' && req.user.role === 'super_admin') delete filter.restaurantId;
     const employees = await E.find(filter).lean();
     res.json(employees.map(e => ({ ...e, id: e._id.toString(), password: undefined })));
   } catch (e) { res.status(500).json({ error: 'Failed to fetch employees' }); }
 });
 
-app.post('/api/employees', authMiddleware, async (req, res) => {
+app.post('/api/employees', authMiddleware, adminOrAbove, async (req, res) => {
   try {
     const { Employee: E } = getModels();
+
+    if (!req.user.restaurantId) return res.status(403).json({ error: 'No restaurant associated' });
+
+    const b = req.body;
+    const name = sanitizeStr(b.name, 100);
+    const username = sanitizeStr(b.username, 50);
+    const password = b.password;
+
+    if (!name || !username || !password) {
+      return res.status(400).json({ error: 'Name, username, and password are required' });
+    }
+    if (password.length < 4) {
+      return res.status(400).json({ error: 'Password must be at least 4 characters' });
+    }
+
+    const hashed = await bcrypt.hash(password, BCRYPT_ROUNDS);
+
     const employee = new E({
-      ...req.body,
-      restaurantId: req.user.restaurantId || req.body.restaurantId
+      restaurantId: req.user.restaurantId,
+      name: name,
+      nameEn: sanitizeStr(b.nameEn, 100),
+      username: username,
+      password: hashed,
+      role: ['admin', 'cashier'].includes(b.role) ? b.role : 'cashier',
+      isActive: true
     });
     await employee.save();
     res.json({ ...employee.toObject(), id: employee._id.toString(), password: undefined });
-  } catch (e) { res.status(500).json({ error: 'Failed to create employee' }); }
+  } catch (e) {
+    if (e.code === 11000) {
+      return res.status(409).json({ error: 'Username already exists for this restaurant' });
+    }
+    res.status(500).json({ error: 'Failed to create employee' });
+  }
 });
 
-app.put('/api/employees/:id', authMiddleware, async (req, res) => {
+app.put('/api/employees/:id', authMiddleware, adminOrAbove, async (req, res) => {
   try {
     const { Employee: E } = getModels();
-    const update = { ...req.body };
-    if (!update.password) delete update.password;
-    const employee = await E.findByIdAndUpdate(req.params.id, update, { new: true });
+
+    const employee = await E.findById(req.params.id);
     if (!employee) return res.status(404).json({ error: 'Employee not found' });
-    res.json({ ...employee.toObject(), id: employee._id.toString(), password: undefined });
-  } catch (e) { res.status(500).json({ error: 'Failed to update employee' }); }
+    if (req.user.role !== 'super_admin' && employee.restaurantId !== req.user.restaurantId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const b = req.body;
+    const allowed = {};
+    if (b.name !== undefined) allowed.name = sanitizeStr(b.name, 100);
+    if (b.nameEn !== undefined) allowed.nameEn = sanitizeStr(b.nameEn, 100);
+    if (b.username !== undefined) allowed.username = sanitizeStr(b.username, 50);
+    if (b.role !== undefined && req.user.role === 'super_admin' && ['admin', 'cashier'].includes(b.role)) {
+      allowed.role = b.role;
+    }
+    if (b.isActive !== undefined && typeof b.isActive === 'boolean') {
+      allowed.isActive = b.isActive;
+    }
+    if (b.password && b.password.length >= 4) {
+      allowed.password = await bcrypt.hash(b.password, BCRYPT_ROUNDS);
+    }
+
+    const updated = await E.findByIdAndUpdate(req.params.id, allowed, { new: true });
+    res.json({ ...updated.toObject(), id: updated._id.toString(), password: undefined });
+  } catch (e) {
+    if (e.code === 11000) {
+      return res.status(409).json({ error: 'Username already exists for this restaurant' });
+    }
+    res.status(500).json({ error: 'Failed to update employee' });
+  }
 });
 
-app.delete('/api/employees/:id', authMiddleware, async (req, res) => {
+app.delete('/api/employees/:id', authMiddleware, adminOrAbove, async (req, res) => {
   try {
     const { Employee: E } = getModels();
+
+    const employee = await E.findById(req.params.id);
+    if (!employee) return res.status(404).json({ error: 'Employee not found' });
+    if (req.user.role !== 'super_admin' && employee.restaurantId !== req.user.restaurantId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
     await E.findByIdAndDelete(req.params.id);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: 'Failed to delete employee' }); }
