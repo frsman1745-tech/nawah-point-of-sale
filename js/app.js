@@ -120,8 +120,17 @@ Nawa.Sync = {
     return this._status;
   },
 
-  addPendingChange() {
-    this._pendingChanges++;
+  async addPendingChange(type, data) {
+    try {
+      await Nawa.DB.add(Nawa.CONFIG.STORES.PENDING_SYNC, {
+        type: type,
+        data: data,
+        timestamp: Date.now()
+      });
+      this._pendingCount++;
+    } catch (e) {
+      console.warn('Failed to queue pending change:', e);
+    }
   },
 
   _updateIndicators() {

@@ -587,11 +587,74 @@ app.put('/api/registrations/:id/reject', authMiddleware, superAdminOnly, async (
   }
 });
 
+// === Super Admin - Create Restaurant (with Registration) ===
+app.post('/api/admin/create-restaurant', authMiddleware, superAdminOnly, async (req, res) => {
+  try {
+    const { Restaurant: R, Registration: Reg, Employee: E } = getModels();
+    const b = req.body;
+    const { name, owner, phone, email, plan, password } = b;
+
+    if (!name || !owner || !email || !password) {
+      return res.status(400).json({ error: 'Restaurant name, owner, email, and password are required' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    const existing = await Reg.findOne({ email: email.toLowerCase().trim() });
+    if (existing) return res.status(409).json({ error: 'Email already registered' });
+
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
+
+    const registration = new Reg({
+      restaurantName: sanitizeStr(name, 100),
+      ownerName: sanitizeStr(owner, 100),
+      email: email.toLowerCase().trim(),
+      phone: sanitizeStr(phone, 20),
+      password: hashedPassword,
+      status: 'approved'
+    });
+    await registration.save();
+
+    const restaurant = new R({
+      name: sanitizeStr(name, 100),
+      owner: sanitizeStr(owner, 100),
+      phone: sanitizeStr(phone, 20),
+      email: email.toLowerCase().trim(),
+      plan: ['basic', 'medium', 'advanced'].includes(plan) ? plan : 'basic',
+      password: hashedPassword,
+      status: 'active',
+      startDate: new Date().toISOString().split('T')[0]
+    });
+    await restaurant.save();
+
+    const adminEmployee = new E({
+      restaurantId: restaurant._id.toString(),
+      name: sanitizeStr(owner, 100),
+      username: email.toLowerCase().trim().split('@')[0],
+      password: hashedPassword,
+      role: 'admin',
+      isActive: true
+    });
+    await adminEmployee.save();
+
+    res.json({
+      ok: true,
+      restaurant: { id: restaurant._id.toString(), name: restaurant.name },
+      registration: { id: registration._id.toString() },
+      password: password
+    });
+  } catch (e) {
+    console.error('Create restaurant error:', e);
+    res.status(500).json({ error: 'Failed to create restaurant' });
+  }
+});
+
 // === Super Admin - Restaurants ===
 app.get('/api/restaurants', authMiddleware, superAdminOnly, async (req, res) => {
   try {
     const { Restaurant: R } = getModels();
-    const restaurants = await R.find().sort({ createdAt: -1 }).lean();
+    const restaurants = await R.find().select('+password').sort({ createdAt: -1 }).lean();
     res.json(restaurants.map(r => ({ ...r, id: r._id.toString() })));
   } catch (e) { res.status(500).json({ error: 'Failed to fetch restaurants' }); }
 });
@@ -639,15 +702,41 @@ app.put('/api/restaurants/:id', authMiddleware, superAdminOnly, async (req, res)
 
 app.delete('/api/restaurants/:id', authMiddleware, superAdminOnly, async (req, res) => {
   try {
-    const { Restaurant: R, Order: O, AuditLog: AL, Employee: E } = getModels();
+    const { Restaurant: R, Registration: Reg, Order: O, AuditLog: AL, Employee: E, Product: P, Cat: C, TableM: T, Floor: F, Attendance: A, Discount: D, Customer: Cus } = getModels();
     const rid = req.params.id;
-    await Promise.all([
+    const restaurant = await R.findById(rid);
+    if (!restaurant) return res.status(404).json({ error: 'Restaurant not found' });
+    const restaurantName = restaurant.name;
+    const results = await Promise.all([
+      E.deleteMany({ restaurantId: rid }),
       O.deleteMany({ restaurantId: rid }),
       AL.deleteMany({ restaurantId: rid }),
-      E.deleteMany({ restaurantId: rid }),
+      P.deleteMany({ restaurantId: rid }),
+      C.deleteMany({ restaurantId: rid }),
+      T.deleteMany({ restaurantId: rid }),
+      F.deleteMany({ restaurantId: rid }),
+      A.deleteMany({ restaurantId: rid }),
+      D.deleteMany({ restaurantId: rid }),
+      Cus.deleteMany({ restaurantId: rid }),
+      Reg.deleteMany({ $or: [{ restaurantId: rid }, { restaurantName: restaurantName }] }),
       R.findByIdAndDelete(rid)
     ]);
-    res.json({ ok: true });
+    res.json({
+      ok: true,
+      deleted: {
+        employees: results[0].deletedCount,
+        orders: results[1].deletedCount,
+        auditLogs: results[2].deletedCount,
+        products: results[3].deletedCount,
+        categories: results[4].deletedCount,
+        tables: results[5].deletedCount,
+        floors: results[6].deletedCount,
+        attendance: results[7].deletedCount,
+        discounts: results[8].deletedCount,
+        customers: results[9].deletedCount,
+        registrations: results[10].deletedCount
+      }
+    });
   } catch (e) { res.status(500).json({ error: 'Failed to delete restaurant' }); }
 });
 

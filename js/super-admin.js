@@ -3,6 +3,7 @@
    ======================================================== */
 
 Nawa.SuperAdmin = {
+  _passwordCache: {},
   state: {
     restaurants: [],
     stats: { total: 0, active: 0, suspended: 0, inactive: 0, revenue: 0 },
@@ -398,7 +399,10 @@ Nawa.SuperAdmin = {
                         ${r.status === 'active' ?
                           `<button class="sa-btn sa-btn-warning sa-btn-sm" data-action="suspend" data-id="${r.id}" title="تعليق">تعليق</button>` :
                           `<button class="sa-btn sa-btn-success sa-btn-sm" data-action="activate" data-id="${r.id}" title="تشغيل">تشغيل</button>`}
-                        <button class="sa-btn sa-btn-danger sa-btn-sm" data-action="deactivate" data-id="${r.id}" title="إيقاف">إيقاف</button>
+                        <button class="sa-btn sa-btn-danger sa-btn-sm" data-action="delete" data-id="${r.id}" title="حذف">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                          حذف
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -466,6 +470,15 @@ Nawa.SuperAdmin = {
                 <div class="sa-detail-field-label">البريد الإلكتروني</div>
                 <div class="sa-detail-field-value" style="direction:ltr;text-align:right;">${restaurant.email || '—'}</div>
               </div>
+              <div class="sa-detail-field" style="grid-column:1/-1;">
+                <div class="sa-detail-field-label">كلمة المرور</div>
+                <div class="sa-detail-field-value" style="direction:ltr;text-align:right;display:flex;align-items:center;gap:8px;">
+                  <span id="saDetailPassword" style="font-family:monospace;">••••••••</span>
+                  <button class="sa-btn sa-btn-ghost" id="saTogglePassword" style="padding:2px 6px;font-size:0.75rem;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -507,6 +520,15 @@ Nawa.SuperAdmin = {
               </button>
             </div>
           </div>
+
+          <div class="sa-detail-section" style="margin-top:24px;border:1px solid #fee2e2;border-radius:12px;padding:16px;">
+            <h3 style="color:#dc2626;margin-bottom:12px;">منطقة الخطر</h3>
+            <button class="sa-btn sa-btn-danger" data-detail-action="delete" data-id="${restaurant.id}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+              حذف المطعم نهائياً
+            </button>
+            <p style="color:#6b7280;font-size:13px;margin-top:8px;">هذا الإجراء لا يمكن التراجع عنه. سيتم حذف جميع البيانات المرتبطة بهذا المطعم.</p>
+          </div>
         </div>
       </div>
     </div>`;
@@ -520,18 +542,42 @@ Nawa.SuperAdmin = {
       btn.addEventListener('click', async (e) => {
         const action = e.currentTarget.dataset.detailAction;
         const id = e.currentTarget.dataset.id;
-        await this.toggleRestaurant(id, action);
-        this.closeDetail();
+        if (action === 'delete') {
+          await this.deleteRestaurant(id);
+        } else {
+          await this.toggleRestaurant(id, action);
+          this.closeDetail();
+        }
       });
     });
 
     const loginAsBtn = modalRoot.querySelector('[data-login-as]');
     if (loginAsBtn) {
-      loginAsBtn.addEventListener('click', () => {
-        this.showNotification('جاري تسجيل الدخول كمدير مطعم...', 'info');
-        setTimeout(() => {
+      loginAsBtn.addEventListener('click', async () => {
+        const pwd = restaurant.password || this._passwordCache[restaurant.id];
+        if (!restaurant.email || !pwd) {
+          this.showNotification('لا يوجد بيانات تسجيل دخول لهذا المطعم', 'error');
+          return;
+        }
+        try {
+          await Nawa.Auth.adminLogin(restaurant.email, pwd);
           window.location.hash = '#/admin';
-        }, 1000);
+        } catch (e) {
+          this.showNotification('فشل تسجيل الدخول', 'error');
+        }
+      });
+    }
+
+    const togglePwdBtn = document.getElementById('saTogglePassword');
+    const pwdSpan = document.getElementById('saDetailPassword');
+    if (togglePwdBtn && pwdSpan) {
+      togglePwdBtn.addEventListener('click', () => {
+        const pwd = restaurant.password || this._passwordCache[restaurant.id] || '—';
+        if (pwdSpan.textContent === '••••••••') {
+          pwdSpan.textContent = pwd;
+        } else {
+          pwdSpan.textContent = '••••••••';
+        }
       });
     }
   },
@@ -669,10 +715,10 @@ Nawa.SuperAdmin = {
         await this.loadRegistrations();
         await this.loadData();
         this.render();
-        this.showToast(Nawa.I18n.getLang() === 'ar' ? 'تمت الموافقة على التسجيل' : 'Registration approved', 'success');
+        this.showNotification(Nawa.I18n.getLang() === 'ar' ? 'تمت الموافقة على التسجيل' : 'Registration approved', 'success');
       }
     } catch (e) {
-      this.showToast(Nawa.I18n.getLang() === 'ar' ? 'خطأ في الموافقة' : 'Error approving', 'error');
+      this.showNotification(Nawa.I18n.getLang() === 'ar' ? 'خطأ في الموافقة' : 'Error approving', 'error');
     }
   },
 
@@ -688,10 +734,10 @@ Nawa.SuperAdmin = {
       if (res.ok) {
         await this.loadRegistrations();
         this.render();
-        this.showToast(Nawa.I18n.getLang() === 'ar' ? 'تم رفض التسجيل' : 'Registration rejected', 'success');
+        this.showNotification(Nawa.I18n.getLang() === 'ar' ? 'تم رفض التسجيل' : 'Registration rejected', 'success');
       }
     } catch (e) {
-      this.showToast(Nawa.I18n.getLang() === 'ar' ? 'خطأ في الرفض' : 'Error rejecting', 'error');
+      this.showNotification(Nawa.I18n.getLang() === 'ar' ? 'خطأ في الرفض' : 'Error rejecting', 'error');
     }
   },
 
@@ -1040,13 +1086,19 @@ Nawa.SuperAdmin = {
 
   async addRestaurant(data) {
     try {
+      const res = await Nawa.Auth.apiFetch('/admin/create-restaurant', {
+        method: 'POST',
+        body: data
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || 'Failed');
+      }
+      const result = await res.json();
       const restaurant = {
-        id: 'rest_' + Date.now(),
-        name: data.name,
-        owner: data.owner,
-        phone: data.phone,
-        email: data.email,
-        plan: data.plan,
+        id: result.restaurant.id || result.restaurant._id,
+        ...data,
+        ...result.restaurant,
         password: data.password,
         status: 'active',
         startDate: new Date().toLocaleDateString('ar-SA'),
@@ -1056,25 +1108,9 @@ Nawa.SuperAdmin = {
         storageUsed: 0,
         createdAt: new Date().toISOString()
       };
+      try { await Nawa.DB.add('restaurants', restaurant); } catch (e) {}
 
-      const endDate = new Date();
-      endDate.setMonth(endDate.getMonth() + 1);
-      restaurant.endDate = endDate.toLocaleDateString('ar-SA');
-
-      try {
-        await Nawa.DB.add('restaurants', restaurant);
-      } catch (e) {
-        console.warn('DB add failed, storing locally:', e);
-        this.state.restaurants.push(restaurant);
-      }
-
-      if (Nawa.Audit && Nawa.Audit.log) {
-        Nawa.Audit.log('restaurant_added', 'restaurants', restaurant.id, {
-          name: restaurant.name,
-          plan: restaurant.plan
-        });
-      }
-
+      this._passwordCache[restaurant.id] = data.password;
       this.closeAddModal();
       await this.loadData();
       this.render();
@@ -1101,6 +1137,15 @@ Nawa.SuperAdmin = {
     restaurant.status = newStatus;
 
     try {
+      await Nawa.Auth.apiFetch('/restaurants/' + id, {
+        method: 'PUT',
+        body: { status: newStatus }
+      });
+    } catch (e) {
+      console.warn('Server sync failed for toggle:', e);
+    }
+
+    try {
       await Nawa.DB.update('restaurants', id, { status: newStatus });
     } catch (e) {
       console.warn('DB update failed:', e);
@@ -1118,6 +1163,34 @@ Nawa.SuperAdmin = {
 
     await this.loadData();
     this.render();
+  },
+
+  async deleteRestaurant(id) {
+    const restaurant = this.state.restaurants.find(r => r.id === id);
+    if (!restaurant) return;
+
+    const isAr = (Nawa.I18n && Nawa.I18n.getLang) ? Nawa.I18n.getLang() === 'ar' : true;
+    const confirmMsg = isAr
+      ? `هل أنت متأكد من حذف مطعم "${restaurant.name}" نهائياً؟ سيتم حذف جميع البيانات المرتبطة ولا يمكن التراجع عن هذا الإجراء.`
+      : `Are you sure you want to permanently delete "${restaurant.name}"? All related data will be deleted and this action cannot be undone.`;
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      const res = await Nawa.Auth.apiFetch('/restaurants/' + id, { method: 'DELETE' });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || 'Server returned ' + res.status);
+      }
+      try { await Nawa.DB.hardDelete('restaurants', id); } catch (e) {}
+      this.state.restaurants = this.state.restaurants.filter(r => r.id !== id);
+      this.closeDetail();
+      await this.loadData();
+      this.render();
+      this.showNotification(isAr ? `تم حذف مطعم "${restaurant.name}" نهائياً` : `Restaurant "${restaurant.name}" deleted permanently`, 'success');
+    } catch (e) {
+      console.error('deleteRestaurant error:', e);
+      this.showNotification(isAr ? 'حدث خطأ أثناء حذف المطعم: ' + e.message : 'Error deleting restaurant: ' + e.message, 'error');
+    }
   },
 
   bindEvents() {
@@ -1160,8 +1233,12 @@ Nawa.SuperAdmin = {
         e.stopPropagation();
         const action = e.currentTarget.dataset.action;
         const id = e.currentTarget.dataset.id;
-        if (confirm(this.getConfirmMessage(action))) {
-          await this.toggleRestaurant(id, action);
+        if (action === 'delete') {
+          await this.deleteRestaurant(id);
+        } else {
+          if (confirm(this.getConfirmMessage(action))) {
+            await this.toggleRestaurant(id, action);
+          }
         }
       });
     });
@@ -1214,7 +1291,8 @@ Nawa.SuperAdmin = {
     const msgs = {
       activate: 'هل أنت متأكد من تفعيل هذا المطعم؟',
       suspend: 'هل أنت متأكد من تعليق هذا المطعم؟',
-      deactivate: 'هل أنت متأكد من إيقاف هذا المطعم؟ لا يمكن التراجع عن هذا الإجراء.'
+      deactivate: 'هل أنت متأكد من إيقاف هذا المطعم؟ لا يمكن التراجع عن هذا الإجراء.',
+      delete: 'هل أنت متأكد من حذف هذا المطعم نهائياً؟ سيتم حذف جميع البيانات المرتبطة ولا يمكن التراجع عن هذا الإجراء.'
     };
     return msgs[action] || 'هل أنت متأكد؟';
   },

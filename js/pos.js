@@ -804,6 +804,7 @@ Nawa.POS = {
 
     try {
       await Nawa.DB.add(Nawa.CONFIG.STORES.ORDERS, order);
+      try { Nawa.Auth.apiFetch('/orders', { method: 'POST', body: order }); } catch (e) { console.warn('Order sync failed:', e); }
       await Nawa.Audit.log('order_held', Nawa.CONFIG.STORES.ORDERS, order.id, { tableId: order.tableId, itemCount: this.state.cart.length, total });
       this.state.cart = [];
       this.render();
@@ -838,6 +839,7 @@ Nawa.POS = {
 
     try {
       await Nawa.DB.add(Nawa.CONFIG.STORES.ORDERS, order);
+      try { Nawa.Auth.apiFetch('/orders', { method: 'POST', body: order }); } catch (e) { console.warn('Order sync failed:', e); }
 
       if (this.state.currentTable) {
         await this._updateTableStatus(this.state.currentTable, 'occupied', order.id);
@@ -1058,6 +1060,7 @@ Nawa.POS = {
 
         try {
           await Nawa.DB.add(Nawa.CONFIG.STORES.ORDERS, order);
+          try { Nawa.Auth.apiFetch('/orders', { method: 'POST', body: order }); } catch (e) { console.warn('Order sync failed:', e); }
 
           if (this.state.currentTable) {
             await this._updateTableStatus(this.state.currentTable, 'available', null);
@@ -2335,6 +2338,7 @@ Nawa.POS = {
 
     try {
       await Nawa.DB.update(Nawa.CONFIG.STORES.TABLES, tableId, { status, orderId: orderId || null });
+      try { Nawa.Auth.apiFetch('/tables/' + tableId, { method: 'PUT', body: { status, orderId: orderId || null } }); } catch (e) { console.warn('Table sync failed:', e); }
       const idx = this.state.tables.findIndex(t => String(t.id) === String(tableId));
       if (idx !== -1) {
         this.state.tables[idx].status = status;

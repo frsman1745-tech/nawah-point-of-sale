@@ -53,50 +53,58 @@
 
     async loadData() {
       try {
-        var orders = await DB.getAll(S.ORDERS);
-        var tables = await DB.getAll(S.TABLES);
-        var employees = await DB.getAll(S.EMPLOYEES);
-        var auditEntries = await DB.getAll(S.AUDIT_LOG);
-        var settingsArr = await DB.getAll(S.SETTINGS);
-        var products = await DB.getAll(S.PRODUCTS);
-        var categories = await DB.getAll(S.CATEGORIES);
-        var floors = await DB.getAll(S.FLOORS);
+        const apiData = {};
+        const apiEndpoints = [
+          { key: 'orders', path: '/orders' },
+          { key: 'products', path: '/products' },
+          { key: 'categories', path: '/categories' },
+          { key: 'tables', path: '/tables' },
+          { key: 'floors', path: '/floors' },
+          { key: 'employees', path: '/employees' }
+        ];
 
+        for (const ep of apiEndpoints) {
+          try {
+            const res = await Nawa.Auth.apiFetch(ep.path);
+            if (res.ok) {
+              apiData[ep.key] = await res.json();
+            }
+          } catch (e) { /* fall through to IndexedDB */ }
+        }
+
+        var S = Nawa.CONFIG.STORES;
+        var DB = Nawa.DB;
+
+        this.state.orders = apiData.orders || await DB.getAll(S.ORDERS) || [];
+        this.state.products = apiData.products || await DB.getAll(S.PRODUCTS) || [];
+        this.state.categories = apiData.categories || await DB.getAll(S.CATEGORIES) || [];
+        this.state.tables = apiData.tables || await DB.getAll(S.TABLES) || [];
+        this.state.floors = apiData.floors || await DB.getAll(S.FLOORS) || [];
+        this.state.employees = apiData.employees || await DB.getAll(S.EMPLOYEES) || [];
+        this.state.auditEntries = await DB.getAll(S.AUDIT_LOG) || [];
+
+        var settingsArr = await DB.getAll(S.SETTINGS);
         var settings = {};
         settingsArr.forEach(function (s) { settings[s.key] = s.value; });
-
-        this.state.orders = orders || [];
-        this.state.tables = tables || [];
-        this.state.employees = employees || [];
-        this.state.auditEntries = auditEntries || [];
         this.state.settings = settings;
-        this.state.products = products || [];
-        this.state.categories = categories || [];
-        this.state.floors = floors || [];
 
         this.calculateStats();
 
         try {
           var discRes = await Nawa.Auth.apiFetch('/discounts');
-          if (discRes.ok) {
-            this.state.discounts = await discRes.json();
-          }
+          if (discRes.ok) { this.state.discounts = await discRes.json(); }
         } catch (e) {}
         this.state.discounts = this.state.discounts || [];
 
         try {
           var attRes = await Nawa.Auth.apiFetch('/attendance');
-          if (attRes.ok) {
-            this.state.attendance = await attRes.json();
-          }
+          if (attRes.ok) { this.state.attendance = await attRes.json(); }
         } catch (e) {}
         this.state.attendance = this.state.attendance || [];
 
         try {
           var custRes = await Nawa.Auth.apiFetch('/customers');
-          if (custRes.ok) {
-            this.state.customers = await custRes.json();
-          }
+          if (custRes.ok) { this.state.customers = await custRes.json(); }
         } catch (e) {}
         this.state.customers = this.state.customers || [];
       } catch (e) {
@@ -1916,7 +1924,8 @@
       }
 
       if (resultEl) {
-        var t = Nawa.I18n.t;
+      var t = Nawa.I18n.t;
+      var isAr = (window.Nawa.I18n && window.Nawa.I18n.getLang) ? window.Nawa.I18n.getLang() === 'ar' : true;
         if (valid) {
           resultEl.innerHTML = '<div class="admin-integrity-badge valid" style="margin:8px 0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> ' + t('audit_integrity_ok') + '</div>';
           this.showNotification(t('audit_integrity_ok') + ' ✓', 'success');
@@ -1976,8 +1985,9 @@
           break;
         }
       }
-
       var t = Nawa.I18n.t;
+      var isAr = (window.Nawa.I18n && window.Nawa.I18n.getLang) ? window.Nawa.I18n.getLang() === 'ar' : true;
+
       var html = '<div class="modal-overlay" id="order-modal-overlay">';
       html += '<div class="modal">';
       html += '<div class="modal-header"><h3>' + t('order_details') + ' #' + orderId.slice(-6).toUpperCase() + '</h3>';
