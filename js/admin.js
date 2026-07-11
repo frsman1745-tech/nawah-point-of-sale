@@ -1850,7 +1850,26 @@
     renderSettings() {
       var st = this.state.settings;
       var t = Nawa.I18n.t;
+      var isAr = (window.Nawa.I18n && window.Nawa.I18n.getLang) ? window.Nawa.I18n.getLang() === 'ar' : true;
+      var user = Nawa.Auth.getCurrentUser ? Nawa.Auth.getCurrentUser() : null;
       var html = '<div class="admin-settings">';
+
+      html += '<div class="admin-settings-card">';
+      html += '<div class="admin-settings-card-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> ' + (isAr ? 'ملف المطعم' : 'Restaurant Profile') + '</div>';
+      html += '<div class="admin-settings-card-body">';
+      html += '<div class="admin-settings-row"><div class="admin-settings-label"><span class="admin-settings-label-text">' + (isAr ? 'اسم المطعم' : 'Restaurant Name') + '</span></div><div class="form-group" style="flex:2"><input type="text" class="form-input" id="setting-rest-name" value="' + Admin._escapeHtml(st.restaurantName || '') + '" placeholder="' + (isAr ? 'اسم مطعمك' : 'Your restaurant name') + '"></div></div>';
+      html += '<div class="admin-settings-row"><div class="admin-settings-label"><span class="admin-settings-label-text">' + (isAr ? 'رقم الهاتف' : 'Phone') + '</span></div><div class="form-group" style="flex:2"><input type="tel" class="form-input" id="setting-rest-phone" value="' + Admin._escapeHtml(st.restaurantPhone || '') + '" placeholder="05XXXXXXXX" dir="ltr"></div></div>';
+      html += '<div class="admin-settings-row"><div class="admin-settings-label"><span class="admin-settings-label-text">' + (isAr ? 'البريد الإلكتروني' : 'Email') + '</span></div><div class="form-group" style="flex:2"><input type="email" class="form-input" id="setting-rest-email" value="' + Admin._escapeHtml(st.restaurantEmail || (user ? user.email || '' : '')) + '" placeholder="email@example.com" dir="ltr"></div></div>';
+      html += '</div></div>';
+
+      html += '<div class="admin-settings-card">';
+      html += '<div class="admin-settings-card-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> ' + (isAr ? 'تغيير كلمة المرور' : 'Change Password') + '</div>';
+      html += '<div class="admin-settings-card-body">';
+      html += '<div class="admin-settings-row"><div class="admin-settings-label"><span class="admin-settings-label-text">' + (isAr ? 'كلمة المرور الحالية' : 'Current Password') + '</span></div><div class="form-group" style="flex:2"><input type="password" class="form-input" id="setting-old-password" placeholder="••••••••" dir="ltr"></div></div>';
+      html += '<div class="admin-settings-row"><div class="admin-settings-label"><span class="admin-settings-label-text">' + (isAr ? 'كلمة المرور الجديدة' : 'New Password') + '</span></div><div class="form-group" style="flex:2"><input type="password" class="form-input" id="setting-new-password" placeholder="' + (isAr ? '8 أحرف على الأقل' : 'At least 8 characters') + '" dir="ltr"></div></div>';
+      html += '<div class="admin-settings-row"><div class="admin-settings-label"><span class="admin-settings-label-text">' + (isAr ? 'تأكيد كلمة المرور' : 'Confirm Password') + '</span></div><div class="form-group" style="flex:2"><input type="password" class="form-input" id="setting-confirm-password" placeholder="••••••••" dir="ltr"></div></div>';
+      html += '<button class="btn btn-primary" id="settings-change-password" style="margin-top:8px;">' + (isAr ? 'تحديث كلمة المرور' : 'Update Password') + '</button>';
+      html += '</div></div>';
 
       html += '<div class="admin-settings-card">';
       html += '<div class="admin-settings-card-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> ' + t('settings') + '</div>';
@@ -1864,6 +1883,21 @@
       html += '<div class="admin-settings-row">';
       html += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t('receipt_header') + '</span><span class="admin-settings-label-desc">' + t('receipt_header_desc') + '</span></div>';
       html += '<div class="form-group" style="flex:2"><input type="text" class="form-input" id="setting-receipt-header" value="' + Admin._escapeHtml(st.receiptHeader || CFG.COMPANY_NAME) + '"></div>';
+      html += '</div>';
+
+      html += '<div class="admin-settings-row">';
+      html += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + (isAr ? 'تذييل الإيصال' : 'Receipt Footer') + '</span><span class="admin-settings-label-desc">' + (isAr ? 'نص يظهر في أسفل الإيصال' : 'Text shown at bottom of receipt') + '</span></div>';
+      html += '<div class="form-group" style="flex:2"><input type="text" class="form-input" id="setting-receipt-footer" value="' + Admin._escapeHtml(st.receiptFooter || '') + '" placeholder="' + (isAr ? 'شكراً لزيارتكم' : 'Thank you for visiting') + '"></div>';
+      html += '</div>';
+
+      html += '<div class="admin-settings-row">';
+      html += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + (isAr ? 'ساعات العمل' : 'Opening Hours') + '</span><span class="admin-settings-label-desc">' + (isAr ? 'وقت الفتح والإغلاق' : 'Open and close times') + '</span></div>';
+      html += '<div class="form-group" style="display:flex;gap:8px;align-items:center;"><input type="time" class="form-input" id="setting-open-time" value="' + Admin._escapeHtml(st.openTime || '09:00') + '" style="max-width:130px;"><span>' + (isAr ? 'إلى' : 'to') + '</span><input type="time" class="form-input" id="setting-close-time" value="' + Admin._escapeHtml(st.closeTime || '23:00') + '" style="max-width:130px;"></div>';
+      html += '</div>';
+
+      html += '<div class="admin-settings-row">';
+      html += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + (isAr ? 'الحد الأدنى للطلب' : 'Minimum Order') + '</span><span class="admin-settings-label-desc">' + (isAr ? 'أقل مبلغ مسموح للطلب' : 'Minimum allowed order amount') + '</span></div>';
+      html += '<div class="form-group" style="max-width:120px"><input type="number" class="form-input" id="setting-min-order" value="' + (st.minOrder || 0) + '" min="0"></div>';
       html += '</div>';
 
       html += '<div class="admin-settings-row">';
@@ -1887,6 +1921,17 @@
       html += '<label class="admin-toggle"><input type="checkbox" id="setting-auto-print"' + (st.autoPrint ? ' checked' : '') + '><span class="admin-toggle-slider"></span></label>';
       html += '</div>';
 
+      html += '</div></div>';
+
+      html += '<div class="admin-settings-card">';
+      html += '<div class="admin-settings-card-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> ' + (isAr ? 'تصدير البيانات' : 'Export Data') + '</div>';
+      html += '<div class="admin-settings-card-body">';
+      html += '<div class="admin-settings-row"><div class="admin-settings-label"><span class="admin-settings-label-text">' + (isAr ? 'تصدير الطلبات' : 'Export Orders') + '</span><span class="admin-settings-label-desc">' + (isAr ? 'تحميل جميع الطلبات كملف CSV' : 'Download all orders as CSV') + '</span></div>';
+      html += '<button class="btn btn-outline" id="settings-export-orders">' + (isAr ? 'تصدير' : 'Export') + '</button></div>';
+      html += '<div class="admin-settings-row"><div class="admin-settings-label"><span class="admin-settings-label-text">' + (isAr ? 'تصدير المنتجات' : 'Export Products') + '</span><span class="admin-settings-label-desc">' + (isAr ? 'تحميل جميع المنتجات كملف CSV' : 'Download all products as CSV') + '</span></div>';
+      html += '<button class="btn btn-outline" id="settings-export-products">' + (isAr ? 'تصدير' : 'Export') + '</button></div>';
+      html += '<div class="admin-settings-row"><div class="admin-settings-label"><span class="admin-settings-label-text">' + (isAr ? 'تصدير العملاء' : 'Export Customers') + '</span><span class="admin-settings-label-desc">' + (isAr ? 'تحميل جميع العملاء كملف CSV' : 'Download all customers as CSV') + '</span></div>';
+      html += '<button class="btn btn-outline" id="settings-export-customers">' + (isAr ? 'تصدير' : 'Export') + '</button></div>';
       html += '</div></div>';
 
       html += '<button class="btn btn-primary btn-lg admin-settings-save" id="settings-save-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> ' + t('save_settings') + '</button>';
@@ -2185,14 +2230,27 @@
       var syncEl = document.getElementById('setting-sync-interval');
       var soundEl = document.getElementById('setting-sound');
       var printEl = document.getElementById('setting-auto-print');
-      if (!taxEl || !receiptEl || !syncEl || !soundEl || !printEl) return;
+      var restNameEl = document.getElementById('setting-rest-name');
+      var restPhoneEl = document.getElementById('setting-rest-phone');
+      var restEmailEl = document.getElementById('setting-rest-email');
+      var receiptFooterEl = document.getElementById('setting-receipt-footer');
+      var openTimeEl = document.getElementById('setting-open-time');
+      var closeTimeEl = document.getElementById('setting-close-time');
+      var minOrderEl = document.getElementById('setting-min-order');
 
       var settingsToSave = [
-        { key: 'taxRate', value: taxEl.value || '15' },
-        { key: 'receiptHeader', value: receiptEl.value || CFG.COMPANY_NAME },
-        { key: 'syncInterval', value: syncEl.value || '300' },
-        { key: 'soundEnabled', value: soundEl.checked },
-        { key: 'autoPrint', value: printEl.checked }
+        { key: 'taxRate', value: (taxEl ? taxEl.value : '15') || '15' },
+        { key: 'receiptHeader', value: (receiptEl ? receiptEl.value : '') || CFG.COMPANY_NAME },
+        { key: 'syncInterval', value: (syncEl ? syncEl.value : '300') || '300' },
+        { key: 'soundEnabled', value: soundEl ? soundEl.checked : true },
+        { key: 'autoPrint', value: printEl ? printEl.checked : false },
+        { key: 'restaurantName', value: restNameEl ? restNameEl.value : '' },
+        { key: 'restaurantPhone', value: restPhoneEl ? restPhoneEl.value : '' },
+        { key: 'restaurantEmail', value: restEmailEl ? restEmailEl.value : '' },
+        { key: 'receiptFooter', value: receiptFooterEl ? receiptFooterEl.value : '' },
+        { key: 'openTime', value: openTimeEl ? openTimeEl.value : '09:00' },
+        { key: 'closeTime', value: closeTimeEl ? closeTimeEl.value : '23:00' },
+        { key: 'minOrder', value: minOrderEl ? minOrderEl.value : '0' }
       ];
 
       var self = this;
@@ -2217,6 +2275,34 @@
       } catch (e) {
         this.showNotification(Nawa.I18n.t('error_generic'), 'error');
       }
+    },
+
+    _exportCSV(store, filename) {
+      var self = this;
+      var isAr = (window.Nawa.I18n && window.Nawa.I18n.getLang) ? window.Nawa.I18n.getLang() === 'ar' : true;
+      Nawa.DB.getAll(store).then(function (rows) {
+        if (!rows || rows.length === 0) { self.showNotification(isAr ? 'لا توجد بيانات للتصدير' : 'No data to export', 'warning'); return; }
+        var headers = Object.keys(rows[0]).filter(function (k) { return k !== 'deletedAt'; });
+        var csvRows = [headers.join(',')];
+        rows.forEach(function (row) {
+          var line = headers.map(function (h) {
+            var val = row[h];
+            if (val === null || val === undefined) return '';
+            if (typeof val === 'object') val = JSON.stringify(val);
+            return '"' + String(val).replace(/"/g, '""') + '"';
+          });
+          csvRows.push(line.join(','));
+        });
+        var blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        var link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(link.href);
+        self.showNotification(isAr ? 'تم التصدير بنجاح' : 'Exported successfully', 'success');
+      }).catch(function () {
+        self.showNotification(isAr ? 'خطأ في التصدير' : 'Export error', 'error');
+      });
     },
 
     showNotification(message, type) {
@@ -2560,6 +2646,33 @@
             Nawa.Auth.logout();
             window.location.hash = '#/login';
           });
+        }
+        var changePwdBtn = document.getElementById('settings-change-password');
+        if (changePwdBtn) {
+          changePwdBtn.addEventListener('click', function () {
+            var oldPwd = document.getElementById('setting-old-password').value;
+            var newPwd = document.getElementById('setting-new-password').value;
+            var confirmPwd = document.getElementById('setting-confirm-password').value;
+            if (!oldPwd || !newPwd) { self.showNotification(isAr ? 'أدخل كلمة المرور الجديدة' : 'Enter new password', 'error'); return; }
+            if (newPwd.length < 6) { self.showNotification(isAr ? 'كلمة المرور 6 أحرف على الأقل' : 'Password must be at least 6 characters', 'error'); return; }
+            if (newPwd !== confirmPwd) { self.showNotification(isAr ? 'كلمتا المرور غير متطابقتين' : 'Passwords do not match', 'error'); return; }
+            Nawa.Auth.apiFetch('/auth/change-password', { method: 'POST', body: { oldPassword: oldPwd, newPassword: newPwd } }).then(function (res) {
+              if (res.ok) { self.showNotification(isAr ? 'تم تحديث كلمة المرور' : 'Password updated', 'success'); document.getElementById('setting-old-password').value = ''; document.getElementById('setting-new-password').value = ''; document.getElementById('setting-confirm-password').value = ''; }
+              else { res.json().then(function (d) { self.showNotification(d.error || 'Error', 'error'); }); }
+            }).catch(function () { self.showNotification(isAr ? 'خطأ في الشبكة' : 'Network error', 'error'); });
+          });
+        }
+        var exportOrdersBtn = document.getElementById('settings-export-orders');
+        if (exportOrdersBtn) {
+          exportOrdersBtn.addEventListener('click', function () { self._exportCSV('orders', 'orders.csv'); });
+        }
+        var exportProductsBtn = document.getElementById('settings-export-products');
+        if (exportProductsBtn) {
+          exportProductsBtn.addEventListener('click', function () { self._exportCSV('products', 'products.csv'); });
+        }
+        var exportCustomersBtn = document.getElementById('settings-export-customers');
+        if (exportCustomersBtn) {
+          exportCustomersBtn.addEventListener('click', function () { self._exportCSV('customers', 'customers.csv'); });
         }
       }
 

@@ -479,6 +479,38 @@ app.post('/api/auth/login', authRateLimit, async (req, res) => {
   }
 });
 
+// === Auth: Change Password (admin/manager only) ===
+app.post('/api/auth/change-password', authMiddleware, async (req, res) => {
+  try {
+    const { Employee: E } = getModels();
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ error: 'Old and new password are required' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'New password must be at least 6 characters' });
+    }
+    if (req.user.role === 'cashier' || req.user.role === 'super_admin') {
+      return res.status(403).json({ error: 'Not authorized to change password' });
+    }
+
+    const employee = await E.findById(req.user.id).select('+password');
+    if (!employee) return res.status(404).json({ error: 'Employee not found' });
+
+    const match = await bcrypt.compare(oldPassword, employee.password);
+    if (!match) return res.status(401).json({ error: 'Current password is incorrect' });
+
+    employee.password = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+    await employee.save();
+
+    res.json({ ok: true, message: 'Password updated' });
+  } catch (e) {
+    console.error('Change password error:', e);
+    res.status(500).json({ error: 'Failed to change password' });
+  }
+});
+
 // === Registration (public) ===
 app.post('/api/register', regRateLimit, async (req, res) => {
   try {
