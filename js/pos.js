@@ -144,7 +144,7 @@ Nawa.POS = {
         var serverTables = await res.json();
         if (serverTables.length > 0) {
           self.state.tables = serverTables.map(function (t) {
-            return { id: t.id, number: t.number, name: t.name, seats: t.seats, floorId: t.floorId, status: t.status };
+            return { id: t.id, number: t.number, name: t.name, seats: t.seats, floorId: t.floorId, shape: t.shape || 'square', status: t.status };
           });
           for (var i = 0; i < self.state.tables.length; i++) {
             try { await DB.add(S.TABLES, self.state.tables[i]); } catch (e) {}
@@ -480,52 +480,107 @@ Nawa.POS = {
   },
 
   renderTableModal() {
+    const floors = this.state.floors;
     const floorId = this.state.currentFloor;
     const tables = this.state.tables.filter(t => t.floorId === floorId);
     const currentTableId = this.state.currentTable;
 
-    if (tables.length === 0) {
-      return `
-        <div class="modal">
-          <div class="modal-header">
-            <h3>${Nawa.I18n.t('table')}</h3>
-            <button class="btn btn-ghost btn-icon pos-modal-close" data-action="close-table-modal">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-            </button>
-          </div>
-          <div class="modal-body" style="text-align:center;padding:40px;color:var(--text-muted);">
-            ${Nawa.I18n.t('no_data')}
-          </div>
-        </div>`;
+    const isTakeaway = currentTableId === null;
+
+    const floorTabsHtml = floors.length > 0 ? `
+      <div class="pos-modal-floor-tabs">
+        ${floors.map(floor => {
+          const label = Nawa.I18n.getLang() === 'ar' ? (floor.name || floor.nameEn) : (floor.nameEn || floor.name);
+          const active = floorId === floor.id ? 'active' : '';
+          return `<button class="pos-modal-floor-tab ${active}" data-floor-id="${floor.id}" data-action="switch-modal-floor">${this._escapeHtml(label)}</button>`;
+        }).join('')}
+      </div>` : '';
+
+    const takeawaySelected = isTakeaway ? ' selected' : '';
+    const takeawayHtml = `
+      <div class="pos-table-shape pos-table-takeaway${takeawaySelected}" data-action="select-takeaway">
+        <svg class="pos-takeaway-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 8h1a4 4 0 1 1 0 8h-1"/>
+          <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/>
+          <line x1="6" y1="2" x2="6" y2="4"/>
+          <line x1="10" y1="2" x2="10" y2="4"/>
+          <line x1="14" y1="2" x2="14" y2="4"/>
+        </svg>
+        <span class="pos-table-shape-number">${Nawa.I18n.t('takeaway')}</span>
+      </div>`;
+
+    let tableShapesHtml = '';
+    if (tables.length > 0) {
+      tableShapesHtml = tables.map(table => {
+        const isSelected = currentTableId === table.id;
+        const isOccupied = table.status === 'occupied';
+        const isReserved = table.status === 'reserved';
+        const label = table.name || table.number || table.id;
+        const shape = table.shape || 'square';
+        let shapeClass = 'square';
+        if (shape === 'round') shapeClass = 'round';
+        else if (shape === 'rectangle') shapeClass = 'rect';
+
+        let statusClass = 'free';
+        if (isOccupied) statusClass = 'occupied';
+        else if (isReserved) statusClass = 'reserved';
+        if (isSelected) statusClass += ' selected';
+
+        return `
+          <div class="pos-table-shape ${shapeClass} ${statusClass}" data-table-id="${table.id}" data-action="select-table">
+            <span class="pos-table-shape-number">${this._escapeHtml(String(label))}</span>
+            <span class="pos-table-shape-seats">${table.seats || ''}</span>
+          </div>`;
+      }).join('');
+    } else if (floors.length > 0) {
+      tableShapesHtml = `<div class="pos-table-empty">${Nawa.I18n.t('no_data')}</div>`;
+    } else {
+      const allTables = this.state.tables;
+      if (allTables.length > 0) {
+        tableShapesHtml = allTables.map(table => {
+          const isSelected = currentTableId === table.id;
+          const isOccupied = table.status === 'occupied';
+          const isReserved = table.status === 'reserved';
+          const label = table.name || table.number || table.id;
+          const shape = table.shape || 'square';
+          let shapeClass = 'square';
+          if (shape === 'round') shapeClass = 'round';
+          else if (shape === 'rectangle') shapeClass = 'rect';
+
+          let statusClass = 'free';
+          if (isOccupied) statusClass = 'occupied';
+          else if (isReserved) statusClass = 'reserved';
+          if (isSelected) statusClass += ' selected';
+
+          return `
+            <div class="pos-table-shape ${shapeClass} ${statusClass}" data-table-id="${table.id}" data-action="select-table">
+              <span class="pos-table-shape-number">${this._escapeHtml(String(label))}</span>
+              <span class="pos-table-shape-seats">${table.seats || ''}</span>
+            </div>`;
+        }).join('');
+      } else {
+        tableShapesHtml = `<div class="pos-table-empty">${Nawa.I18n.t('no_data')}</div>`;
+      }
     }
 
-    const tableCards = tables.map(table => {
-      const isSelected = currentTableId === table.id;
-      const isOccupied = table.status === 'occupied';
-      const label = table.name || table.number || table.id;
-      let statusClass = 'pos-table-free';
-      if (isOccupied) statusClass = 'pos-table-occupied';
-      if (isSelected) statusClass = 'pos-table-selected';
-
-      return `
-        <div class="pos-table-card ${statusClass}" data-table-id="${table.id}" data-action="select-table">
-          <span class="pos-table-number">${this._escapeHtml(String(label))}</span>
-          <span class="pos-table-capacity">${table.capacity || ''}</span>
-          <span class="pos-table-status-text">${isOccupied ? Nawa.I18n.t('occupied') : Nawa.I18n.t('available')}</span>
-        </div>`;
-    }).join('');
-
     return `
-      <div class="modal">
+      <div class="modal pos-table-modal">
         <div class="modal-header">
           <h3>${Nawa.I18n.t('table')}</h3>
           <button class="btn btn-ghost btn-icon pos-modal-close" data-action="close-table-modal">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
           </button>
         </div>
+        ${floorTabsHtml}
         <div class="modal-body">
-          <div class="pos-table-grid">
-            ${tableCards}
+          <div class="pos-table-plan">
+            ${takeawayHtml}
+            ${tableShapesHtml}
+          </div>
+          <div class="pos-table-legend">
+            <span class="pos-legend-item"><span class="pos-legend-dot pos-legend-free"></span>${Nawa.I18n.t('available')}</span>
+            <span class="pos-legend-item"><span class="pos-legend-dot pos-legend-occupied"></span>${Nawa.I18n.t('occupied')}</span>
+            <span class="pos-legend-item"><span class="pos-legend-dot pos-legend-reserved"></span>${Nawa.I18n.t('reserved')}</span>
           </div>
         </div>
       </div>`;
@@ -1133,6 +1188,27 @@ Nawa.POS = {
       // Cart quantity controls
       const action = target.dataset.action;
       const index = parseInt(target.dataset.index, 10);
+
+      // Modal floor tab (switches floor inside table modal without closing it)
+      if (action === 'switch-modal-floor') {
+        const mfId = target.dataset.floorId;
+        if (mfId) {
+          this.state.currentFloor = mfId;
+          const modal = document.getElementById('pos-table-modal');
+          if (modal && !modal.classList.contains('hidden')) {
+            modal.innerHTML = this.renderTableModal();
+          }
+        }
+        return;
+      }
+
+      // Takeaway select
+      if (action === 'select-takeaway') {
+        this.state.currentTable = null;
+        this.hideTableModal();
+        this.render();
+        return;
+      }
 
       if (action === 'plus' && !isNaN(index)) {
         this.updateQuantity(index, 1);

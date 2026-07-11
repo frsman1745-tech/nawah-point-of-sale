@@ -11,6 +11,7 @@
     // ── Auth / Login ──
     login: { ar: 'تسجيل الدخول', en: 'Login' },
     logout: { ar: 'تسجيل الخروج', en: 'Logout' },
+    logout_desc: { ar: 'تسجيل الخروج من الحساب و العودة لصفحة تسجيل الدخول', en: 'Sign out of your account and return to login' },
     username: { ar: 'اسم المستخدم', en: 'Username' },
     password: { ar: 'كلمة المرور', en: 'Password' },
     login_button: { ar: 'دخول', en: 'Sign In' },

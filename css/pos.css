@@ -456,75 +456,219 @@ body[dir="ltr"] .pos-cart-panel {
 }
 
 /* ===== Table Modal ===== */
-.pos-table-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-  gap: 12px;
+.pos-table-modal {
+  max-width: 700px;
 }
 
-.pos-table-card {
+.pos-modal-floor-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.pos-modal-floor-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.pos-modal-floor-tab {
+  flex-shrink: 0;
+  padding: 8px 18px;
+  min-height: 36px;
+  border-radius: var(--radius-sm);
+  background: var(--border-light);
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  transition: var(--transition);
+  -webkit-tap-highlight-color: transparent;
+  border: none;
+  cursor: pointer;
+}
+.pos-modal-floor-tab:hover {
+  background: var(--primary-50);
+  color: var(--primary);
+}
+.pos-modal-floor-tab.active {
+  background: var(--primary);
+  color: white;
+  font-weight: 600;
+}
+
+.pos-table-plan {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.pos-table-shape {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 16px 8px;
-  border-radius: var(--radius);
-  border: 2px solid var(--border);
-  background: var(--surface);
   cursor: pointer;
   transition: var(--transition);
-  gap: 4px;
-  min-height: 88px;
   -webkit-tap-highlight-color: transparent;
-}
-.pos-table-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow);
-}
-.pos-table-card:active {
-  transform: scale(0.96);
+  position: relative;
+  min-height: 100px;
+  padding: 16px 10px;
+  border: 3px solid var(--border);
+  background: var(--surface);
 }
 
-.pos-table-number {
-  font-size: 1.125rem;
+.pos-table-shape.round {
+  border-radius: 50%;
+  min-height: 110px;
+  min-width: 110px;
+  justify-self: center;
+}
+
+.pos-table-shape.square {
+  border-radius: var(--radius);
+}
+
+.pos-table-shape.rect {
+  border-radius: var(--radius);
+  grid-column: span 1;
+}
+
+.pos-table-shape:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+}
+.pos-table-shape:active {
+  transform: scale(0.95);
+}
+
+.pos-table-shape-number {
+  font-size: 1.25rem;
   font-weight: 700;
-}
-.pos-table-capacity {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-.pos-table-status-text {
-  font-size: 0.6875rem;
-  font-weight: 500;
-  padding: 2px 6px;
-  border-radius: var(--radius-full);
-  margin-top: 2px;
+  color: var(--navy);
+  line-height: 1.2;
 }
 
-.pos-table-free {
-  border-color: var(--success);
+.pos-table-shape-seats {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
 }
-.pos-table-free .pos-table-status-text {
+.pos-table-shape-seats::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  background: currentColor;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E%3C/svg%3E");
+  mask-size: contain;
+  -webkit-mask-size: contain;
+}
+
+/* Status colors */
+.pos-table-shape.free {
+  border-color: var(--success);
   background: var(--success-light);
+}
+.pos-table-shape.free .pos-table-shape-number {
   color: var(--success);
 }
 
-.pos-table-occupied {
+.pos-table-shape.occupied {
   border-color: var(--danger);
   background: var(--danger-light);
 }
-.pos-table-occupied .pos-table-status-text {
-  background: var(--danger-light);
+.pos-table-shape.occupied .pos-table-shape-number {
   color: var(--danger);
 }
 
-.pos-table-selected {
+.pos-table-shape.reserved {
+  border-color: var(--warning);
+  background: var(--warning-light);
+}
+.pos-table-shape.reserved .pos-table-shape-number {
+  color: var(--primary-dark);
+}
+
+.pos-table-shape.selected {
+  border-color: var(--primary);
+  background: var(--primary-50);
+  box-shadow: 0 0 0 4px var(--primary-100), var(--shadow);
+}
+.pos-table-shape.selected .pos-table-shape-number {
+  color: var(--navy);
+}
+
+/* Takeaway option */
+.pos-table-takeaway {
+  border-style: dashed;
+  border-color: var(--primary-200);
+  background: var(--surface);
+}
+.pos-table-takeaway:hover {
   border-color: var(--primary);
   background: var(--primary-50);
 }
-.pos-table-selected .pos-table-status-text {
-  background: var(--primary-100);
+.pos-table-takeaway.selected {
+  border-style: solid;
+  border-color: var(--primary);
+  background: var(--primary-50);
+  box-shadow: 0 0 0 4px var(--primary-100), var(--shadow);
+}
+
+.pos-takeaway-icon {
   color: var(--primary);
+  margin-bottom: 4px;
+}
+
+/* Empty state */
+.pos-table-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 40px 16px;
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+}
+
+/* Legend */
+.pos-table-legend {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  padding: 14px 0 4px;
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.pos-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.pos-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pos-legend-free {
+  background: var(--success);
+}
+.pos-legend-occupied {
+  background: var(--danger);
+}
+.pos-legend-reserved {
+  background: var(--warning);
 }
 
 /* ===== Payment Modal ===== */
@@ -646,8 +790,17 @@ body[dir="ltr"] .pos-cart-panel {
     min-height: 110px;
   }
 
-  .pos-table-grid {
-    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  .pos-table-plan {
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 10px;
+  }
+  .pos-table-shape {
+    min-height: 80px;
+    padding: 12px 8px;
+  }
+  .pos-table-shape.round {
+    min-height: 90px;
+    min-width: 90px;
   }
 }
 

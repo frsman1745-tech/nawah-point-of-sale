@@ -296,55 +296,9 @@
       var html = '<div class="admin-topbar">';
       html += '<h1 class="admin-topbar-title" data-print-date="' + dateStr + '">' + (titles[this.state.activeTab] || '') + '</h1>';
       html += '<div class="admin-topbar-actions">';
-      html += this._renderAdminAttendanceBtn();
       html += '<span class="admin-topbar-date"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>' + dateStr + '</span>';
       html += '</div></div>';
       return html;
-    },
-
-    _renderAdminAttendanceBtn() {
-      var user = Nawa.Auth.getCurrentUser();
-      if (!user) return '';
-      var empId = user.id;
-      var rec = (this.state.attendance || []).find(function (a) { return a.employeeId === empId && !a.clockOut; });
-      var isAr = (window.Nawa.I18n.getLang() === 'ar');
-      var t = Nawa.I18n.t;
-      if (rec) {
-        var time = new Date(rec.clockIn).toLocaleTimeString(isAr ? 'ar-SA' : 'en-US', { hour: '2-digit', minute: '2-digit' });
-        return '<span style="display:flex;align-items:center;gap:6px;font-size:0.8125rem;color:#22c55e;font-weight:600;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' + t('clocked_in_at') + ' ' + time + ' <button class="btn btn-danger btn-sm admin-clock-out-btn" style="padding:3px 10px;font-size:0.75rem;border-radius:6px;">' + t('clock_out') + '</button></span>';
-      }
-      return '<button class="btn btn-success btn-sm admin-clock-in-btn" style="padding:4px 12px;font-size:0.8125rem;font-weight:600;border-radius:8px;display:flex;align-items:center;gap:4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' + t('clock_in') + '</button>';
-    },
-
-    async adminClockIn() {
-      var self = this;
-      try {
-        var res = await Nawa.Auth.apiFetch('/attendance/clock-in', { method: 'POST' });
-        if (res.ok) {
-          var data = await res.json();
-          self.state.attendance.push(data);
-          self.render();
-          self.showNotification(Nawa.I18n.t('clock_in_success'), 'success');
-        }
-      } catch (e) {}
-    },
-
-    async adminClockOut() {
-      var self = this;
-      var user = Nawa.Auth.getCurrentUser();
-      if (!user) return;
-      var rec = (this.state.attendance || []).find(function (a) { return a.employeeId === user.id && !a.clockOut; });
-      if (!rec) return;
-      try {
-        var res = await Nawa.Auth.apiFetch('/attendance/' + rec.id + '/clock-out', { method: 'PUT' });
-        if (res.ok) {
-          self.showNotification(Nawa.I18n.t('clock_out_success'), 'success');
-          setTimeout(function () {
-            Nawa.Auth.logout();
-            window.location.hash = '#/login';
-          }, 1500);
-        }
-      } catch (e) {}
     },
 
     renderDashboard() {
@@ -949,8 +903,10 @@
               html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;">';
               floorTables.forEach(function (tbl) {
                 var sc = tbl.status === 'occupied' ? '#ef4444' : tbl.status === 'reserved' ? '#f59e0b' : '#22c55e';
-                html += '<div style="background:var(--card,#fff);border:2px solid ' + sc + ';border-radius:10px;padding:12px;text-align:center;position:relative;">';
+                var br = (tbl.shape === 'round') ? '50%' : '10px';
+                html += '<div style="background:var(--card,#fff);border:2px solid ' + sc + ';border-radius:' + br + ';padding:12px;text-align:center;position:relative;">';
                 html += '<div style="font-weight:700;font-size:1.1rem;">' + Admin._escapeHtml(tbl.name || '#' + (tbl.number || '')) + '</div>';
+                html += '<div style="font-size:0.625rem;color:var(--text-secondary,#6B7280);margin-top:2px;">' + (isAr ? (tbl.shape === 'round' ? 'دائري' : tbl.shape === 'rectangle' ? 'مستطيل' : 'مربع') : (tbl.shape || 'square')) + ' · ' + (tbl.seats || 4) + ' ' + (isAr ? 'أشخاص' : 'seats') + '</div>';
                 html += '<div style="font-size:0.75rem;color:' + sc + ';margin-top:4px;">' + (isAr ? (tbl.status === 'occupied' ? 'مشغولة' : tbl.status === 'reserved' ? 'محجوزة' : 'فارغة') : (tbl.status || 'free')) + '</div>';
                 html += '<div style="position:absolute;top:4px;left:4px;display:flex;gap:2px;">';
                 html += '<button class="btn btn-ghost btn-sm ds-edit-item" data-ds-type="table" data-id="' + tbl.id + '" style="padding:2px 4px;font-size:0.625rem;">✏️</button>';
@@ -963,8 +919,10 @@
             html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;">';
             tables.forEach(function (tbl) {
               var sc = tbl.status === 'occupied' ? '#ef4444' : tbl.status === 'reserved' ? '#f59e0b' : '#22c55e';
-              html += '<div style="background:var(--card,#fff);border:2px solid ' + sc + ';border-radius:10px;padding:12px;text-align:center;position:relative;">';
+              var br = (tbl.shape === 'round') ? '50%' : '10px';
+              html += '<div style="background:var(--card,#fff);border:2px solid ' + sc + ';border-radius:' + br + ';padding:12px;text-align:center;position:relative;">';
               html += '<div style="font-weight:700;font-size:1.1rem;">' + Admin._escapeHtml(tbl.name || '#' + (tbl.number || '')) + '</div>';
+              html += '<div style="font-size:0.625rem;color:var(--text-secondary,#6B7280);margin-top:2px;">' + (isAr ? (tbl.shape === 'round' ? 'دائري' : tbl.shape === 'rectangle' ? 'مستطيل' : 'مربع') : (tbl.shape || 'square')) + ' · ' + (tbl.seats || 4) + ' ' + (isAr ? 'أشخاص' : 'seats') + '</div>';
               html += '<div style="font-size:0.75rem;color:' + sc + ';margin-top:4px;">' + (isAr ? (tbl.status === 'occupied' ? 'مشغولة' : tbl.status === 'reserved' ? 'محجوزة' : 'فارغة') : (tbl.status || 'free')) + '</div>';
               html += '<div style="position:absolute;top:4px;left:4px;display:flex;gap:2px;">';
               html += '<button class="btn btn-ghost btn-sm ds-edit-item" data-ds-type="table" data-id="' + tbl.id + '" style="padding:2px 4px;font-size:0.625rem;">✏️</button>';
@@ -1143,6 +1101,12 @@
         html += '</div>';
         html += '<div class="form-group"><label class="form-label">' + (isAr ? 'عدد الأشخاص' : 'Seats') + '</label>';
         html += '<input type="number" class="form-input" id="ds-m-seats" value="' + (item ? (item.seats || 4) : 4) + '" min="1" max="50"></div>';
+        html += '<div class="form-group"><label class="form-label">' + (isAr ? 'شكل الطاولة' : 'Table Shape') + '</label>';
+        html += '<select class="form-input" id="ds-m-shape">';
+        html += '<option value="round"' + (item && item.shape === 'round' ? ' selected' : '') + '>' + (isAr ? 'دائري' : 'Round') + '</option>';
+        html += '<option value="square"' + (!item || item.shape === 'square' || !item.shape ? ' selected' : '') + '>' + (isAr ? 'مربع' : 'Square') + '</option>';
+        html += '<option value="rectangle"' + (item && item.shape === 'rectangle' ? ' selected' : '') + '>' + (isAr ? 'مستطيل' : 'Rectangle') + '</option>';
+        html += '</select></div>';
         html += '<div class="form-group"><label class="form-label">' + (isAr ? 'الأرضية' : 'Floor') + '</label>';
         html += '<select class="form-input" id="ds-m-floorId"><option value="">' + (isAr ? '-- اختر أرضية (إلزامي) --' : '-- Select Floor (Required) --') + '</option>';
         floors.forEach(function (f) {
@@ -1219,6 +1183,7 @@
           var name = (document.getElementById('ds-m-name') || {}).value || '';
           var seats = parseInt((document.getElementById('ds-m-seats') || {}).value) || 4;
           var floorId = (document.getElementById('ds-m-floorId') || {}).value || '';
+          var shape = (document.getElementById('ds-m-shape') || {}).value || 'square';
           if (!number) { if (errEl) { errEl.textContent = isAr ? 'رقم الطاولة مطلوب' : 'Table number is required'; errEl.classList.remove('hidden'); } return; }
           if (!floorId) { if (errEl) { errEl.textContent = isAr ? 'يجب اختيار الأرضية' : 'Floor is required'; errEl.classList.remove('hidden'); } return; }
           if (m.editId) {
@@ -1228,14 +1193,15 @@
               existing.name = name.trim();
               existing.seats = seats;
               existing.floorId = floorId;
+              existing.shape = shape;
               await DB.update(S.TABLES, existing.id, existing);
-              Nawa.Auth.apiFetch('/tables/' + existing.id, { method: 'PUT', body: { number: existing.number, name: existing.name, seats: existing.seats, floorId: existing.floorId } }).catch(function(){});
+              Nawa.Auth.apiFetch('/tables/' + existing.id, { method: 'PUT', body: { number: existing.number, name: existing.name, seats: existing.seats, floorId: existing.floorId, shape: existing.shape } }).catch(function(){});
             }
           } else {
-            var newItem = { id: Date.now().toString(), number: number, name: name.trim(), seats: seats, floorId: floorId, status: 'free', createdAt: new Date().toISOString() };
+            var newItem = { id: Date.now().toString(), number: number, name: name.trim(), seats: seats, floorId: floorId, shape: shape, status: 'free', createdAt: new Date().toISOString() };
             await DB.add(S.TABLES, newItem);
             this.state.tables.push(newItem);
-            Nawa.Auth.apiFetch('/tables', { method: 'POST', body: { number: newItem.number, name: newItem.name, seats: newItem.seats, floorId: newItem.floorId } }).catch(function(){});
+            Nawa.Auth.apiFetch('/tables', { method: 'POST', body: { number: newItem.number, name: newItem.name, seats: newItem.seats, floorId: newItem.floorId, shape: newItem.shape } }).catch(function(){});
           }
         } else if (m.type === 'floor') {
           var name = (document.getElementById('ds-m-name') || {}).value || '';
@@ -1336,6 +1302,13 @@
       html += '</div></div>';
 
       html += '<button class="btn btn-primary btn-lg admin-settings-save" id="settings-save-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> ' + t('save_settings') + '</button>';
+
+      html += '<div class="admin-settings-card" style="margin-top:24px;border:1px solid #fee2e2;">';
+      html += '<div class="admin-settings-card-header" style="color:#dc2626;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> ' + t('logout') + '</div>';
+      html += '<div class="admin-settings-card-body">';
+      html += '<div class="admin-settings-row"><div class="admin-settings-label"><span class="admin-settings-label-text">' + t('logout_desc') + '</span></div>';
+      html += '<button class="btn btn-danger" id="admin-logout-btn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> ' + t('logout') + '</button>';
+      html += '</div></div></div>';
 
       html += '</div>';
       return html;
@@ -1640,15 +1613,6 @@
         });
       });
 
-      var adminClockIn = document.querySelector('.admin-clock-in-btn');
-      if (adminClockIn) {
-        adminClockIn.addEventListener('click', function () { self.adminClockIn(); });
-      }
-      var adminClockOut = document.querySelector('.admin-clock-out-btn');
-      if (adminClockOut) {
-        adminClockOut.addEventListener('click', function () { self.adminClockOut(); });
-      }
-
       var backBtn = document.getElementById('admin-back-pos');
       if (backBtn) {
         backBtn.addEventListener('click', function () {
@@ -1806,6 +1770,13 @@
         var saveBtn = document.getElementById('settings-save-btn');
         if (saveBtn) {
           saveBtn.addEventListener('click', function () { self.saveSettings(); });
+        }
+        var logoutBtn = document.getElementById('admin-logout-btn');
+        if (logoutBtn) {
+          logoutBtn.addEventListener('click', function () {
+            Nawa.Auth.logout();
+            window.location.hash = '#/login';
+          });
         }
       }
 
