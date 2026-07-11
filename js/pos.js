@@ -176,7 +176,8 @@ Nawa.POS = {
       var res = await Nawa.Auth.apiFetch('/attendance/today');
       if (res.ok) {
         var data = await res.json();
-        this.state.attendanceRecord = data;
+        var rec = Array.isArray(data) ? data.find(function (a) { return !a.clockOut; }) || data[0] || null : data;
+        this.state.attendanceRecord = rec;
       }
     } catch (e) {}
   },
@@ -196,6 +197,8 @@ Nawa.POS = {
 
   async _clockOut() {
     if (!Nawa.Auth || !Nawa.Auth.apiFetch || !this.state.attendanceRecord) return;
+    var isAr = Nawa.I18n.getLang() === 'ar';
+    if (!confirm(isAr ? 'هل تريد تسجيل الانصراف؟' : 'Do you want to clock out?')) return;
     var self = this;
     try {
       var res = await Nawa.Auth.apiFetch('/attendance/' + this.state.attendanceRecord.id + '/clock-out', { method: 'PUT' });
@@ -205,8 +208,12 @@ Nawa.POS = {
           Nawa.Auth.logout();
           window.location.hash = '#/login';
         }, 1500);
+      } else {
+        this._showToast(Nawa.I18n.t('error_generic'), 'error');
       }
-    } catch (e) {}
+    } catch (e) {
+      this._showToast(Nawa.I18n.t('error_generic'), 'error');
+    }
   },
 
   _showToast(message, type) {
