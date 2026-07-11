@@ -21,7 +21,12 @@
       auditPage: 1,
       auditPerPage: 20,
       auditFilters: { user: '', action: '', search: '', dateFrom: '', dateTo: '' },
-      sidebarOpen: false
+      sidebarOpen: false,
+      dsActiveTab: 'products',
+      dsModal: { open: false, type: '', editId: null },
+      products: [],
+      categories: [],
+      floors: []
     },
 
     async init() {
@@ -40,6 +45,9 @@
         var employees = await DB.getAll(S.EMPLOYEES);
         var auditEntries = await DB.getAll(S.AUDIT_LOG);
         var settingsArr = await DB.getAll(S.SETTINGS);
+        var products = await DB.getAll(S.PRODUCTS);
+        var categories = await DB.getAll(S.CATEGORIES);
+        var floors = await DB.getAll(S.FLOORS);
 
         var settings = {};
         settingsArr.forEach(function (s) { settings[s.key] = s.value; });
@@ -49,6 +57,9 @@
         this.state.employees = employees || [];
         this.state.auditEntries = auditEntries || [];
         this.state.settings = settings;
+        this.state.products = products || [];
+        this.state.categories = categories || [];
+        this.state.floors = floors || [];
 
         this.calculateStats();
       } catch (e) {
@@ -764,107 +775,447 @@
 
     renderDashboardSettings() {
       var st = this.state.settings;
+      var self = this;
       var t = Nawa.I18n.t;
       var isAr = (window.Nawa.I18n && window.Nawa.I18n.getLang) ? window.Nawa.I18n.getLang() === 'ar' : true;
+      var dsTab = this.state.dsActiveTab || 'products';
+      var products = this.state.products || [];
+      var categories = this.state.categories || [];
+      var tables = this.state.tables || [];
+      var floors = this.state.floors || [];
+
       var html = '<div class="admin-settings">';
-      html += '<div style="max-width:800px;margin:0 auto;">';
-      html += '<p style="color:var(--text-secondary,#6B7280);margin-bottom:24px;font-size:0.9375rem;">' + t('ds_desc') + '</p>';
+      html += '<div style="max-width:960px;margin:0 auto;">';
 
-      function toggleRow(key, label, desc, settingKey) {
-        var checked = st[settingKey] !== false ? ' checked' : '';
-        var row = '<div class="admin-settings-row">';
-        row += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t(label) + '</span><span class="admin-settings-label-desc">' + t(desc) + '</span></div>';
-        row += '<label class="admin-toggle"><input type="checkbox" class="ds-toggle" data-key="' + settingKey + '"' + checked + '><span class="admin-toggle-slider"></span></label>';
-        row += '</div>';
-        return row;
+      var tabs = [
+        { id: 'products', label: isAr ? 'المنتجات' : 'Products', icon: '📦' },
+        { id: 'categories', label: isAr ? 'الفئات' : 'Categories', icon: '🏷️' },
+        { id: 'tables', label: isAr ? 'الطاولات' : 'Tables', icon: '🪑' },
+        { id: 'features', label: isAr ? 'المميزات' : 'Features', icon: '⚙️' },
+        { id: 'business', label: isAr ? 'إعدادات العمل' : 'Business', icon: '💼' }
+      ];
+
+      html += '<div style="display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap;">';
+      tabs.forEach(function (tab) {
+        var active = dsTab === tab.id;
+        var btnStyle = active
+          ? 'background:var(--navy,#0E1C3D);color:#fff;border-color:var(--navy,#0E1C3D);'
+          : 'background:var(--card,#fff);color:var(--text-primary,#1A1A1A);border-color:var(--border,#E5E7EB);';
+        html += '<button class="btn ds-tab-btn" data-ds-tab="' + tab.id + '" style="' + btnStyle + 'padding:10px 18px;border-radius:10px;cursor:pointer;font-weight:600;font-size:0.875rem;display:flex;align-items:center;gap:6px;transition:all 0.2s;">' + tab.icon + ' ' + tab.label + '</button>';
+      });
+      html += '</div>';
+
+      html += '<div id="ds-tab-content">';
+      switch (dsTab) {
+        case 'products':
+          html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
+          html += '<h3 style="margin:0;font-size:1.1rem;font-weight:700;color:var(--navy,#0E1C3D);">' + (isAr ? 'المنتجات' : 'Products') + ' <span style="color:var(--text-secondary,#6B7280);font-weight:400;">(' + products.length + ')</span></h3>';
+          html += '<button class="btn btn-primary btn-sm ds-add-item" data-ds-type="product" style="display:flex;align-items:center;gap:4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> ' + (isAr ? 'إضافة منتج' : 'Add Product') + '</button>';
+          html += '</div>';
+          if (products.length === 0) {
+            html += '<div style="text-align:center;padding:48px;color:var(--text-secondary,#6B7280);"><div style="font-size:2.5rem;margin-bottom:12px;">📦</div>' + (isAr ? 'لا توجد منتجات بعد' : 'No products yet') + '</div>';
+          } else {
+            html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;">';
+            products.forEach(function (p) {
+              var catName = '';
+              for (var c = 0; c < categories.length; c++) {
+                if (categories[c].id === p.categoryId) { catName = categories[c].name || ''; break; }
+              }
+              html += '<div style="background:var(--card,#fff);border:1px solid var(--border,#E5E7EB);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:8px;">';
+              html += '<div style="display:flex;justify-content:space-between;align-items:start;">';
+              html += '<div><div style="font-weight:700;font-size:0.9375rem;">' + Admin._escapeHtml(p.name || '--') + '</div>';
+              if (p.nameEn) html += '<div style="font-size:0.8125rem;color:var(--text-secondary,#6B7280);">' + Admin._escapeHtml(p.nameEn) + '</div>';
+              html += '</div>';
+              html += '<div style="display:flex;gap:4px;">';
+              html += '<button class="btn btn-ghost btn-sm ds-edit-item" data-ds-type="product" data-id="' + p.id + '" title="' + (isAr ? 'تعديل' : 'Edit') + '" style="padding:4px 8px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>';
+              html += '<button class="btn btn-ghost btn-sm ds-delete-item" data-ds-type="product" data-id="' + p.id + '" title="' + (isAr ? 'حذف' : 'Delete') + '" style="padding:4px 8px;color:var(--danger,#ef4444);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>';
+              html += '</div></div>';
+              html += '<div style="display:flex;gap:12px;font-size:0.8125rem;color:var(--text-secondary,#6B7280);">';
+              html += '<span style="font-weight:600;color:var(--navy,#0E1C3D);">' + self.formatCurrency(p.price || 0) + '</span>';
+              if (catName) html += '<span>' + Admin._escapeHtml(catName) + '</span>';
+              if (p.barcode) html += '<span>' + Admin._escapeHtml(p.barcode) + '</span>';
+              html += '</div></div>';
+            });
+            html += '</div>';
+          }
+          break;
+
+        case 'categories':
+          html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
+          html += '<h3 style="margin:0;font-size:1.1rem;font-weight:700;color:var(--navy,#0E1C3D);">' + (isAr ? 'الفئات' : 'Categories') + ' <span style="color:var(--text-secondary,#6B7280);font-weight:400;">(' + categories.length + ')</span></h3>';
+          html += '<button class="btn btn-primary btn-sm ds-add-item" data-ds-type="category" style="display:flex;align-items:center;gap:4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> ' + (isAr ? 'إضافة فئة' : 'Add Category') + '</button>';
+          html += '</div>';
+          if (categories.length === 0) {
+            html += '<div style="text-align:center;padding:48px;color:var(--text-secondary,#6B7280);"><div style="font-size:2.5rem;margin-bottom:12px;">🏷️</div>' + (isAr ? 'لا توجد فئات بعد' : 'No categories yet') + '</div>';
+          } else {
+            html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;">';
+            categories.forEach(function (cat) {
+              var count = products.filter(function (p) { return p.categoryId === cat.id; }).length;
+              html += '<div style="background:var(--card,#fff);border:1px solid var(--border,#E5E7EB);border-radius:12px;padding:16px;display:flex;justify-content:space-between;align-items:center;">';
+              html += '<div><div style="font-weight:700;">' + Admin._escapeHtml(cat.name || '--') + '</div>';
+              html += '<div style="font-size:0.8125rem;color:var(--text-secondary,#6B7280);">' + count + ' ' + (isAr ? 'منتج' : 'products') + '</div></div>';
+              html += '<div style="display:flex;gap:4px;">';
+              html += '<button class="btn btn-ghost btn-sm ds-edit-item" data-ds-type="category" data-id="' + cat.id + '" style="padding:4px 8px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>';
+              html += '<button class="btn btn-ghost btn-sm ds-delete-item" data-ds-type="category" data-id="' + cat.id + '" style="padding:4px 8px;color:var(--danger,#ef4444);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>';
+              html += '</div></div>';
+            });
+            html += '</div>';
+          }
+          break;
+
+        case 'tables':
+          html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
+          html += '<h3 style="margin:0;font-size:1.1rem;font-weight:700;color:var(--navy,#0E1C3D);">' + (isAr ? 'الطاولات والأرضيات' : 'Tables & Floors') + ' <span style="color:var(--text-secondary,#6B7280);font-weight:400;">(' + tables.length + ' ' + (isAr ? 'طاولة' : 'tables') + ')</span></h3>';
+          html += '<div style="display:flex;gap:8px;">';
+          html += '<button class="btn btn-primary btn-sm ds-add-item" data-ds-type="table" style="display:flex;align-items:center;gap:4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> ' + (isAr ? 'إضافة طاولة' : 'Add Table') + '</button>';
+          html += '<button class="btn btn-outline btn-sm ds-add-item" data-ds-type="floor" style="display:flex;align-items:center;gap:4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> ' + (isAr ? 'إضافة أرضية' : 'Add Floor') + '</button>';
+          html += '</div></div>';
+          if (floors.length === 0 && tables.length === 0) {
+            html += '<div style="text-align:center;padding:48px;color:var(--text-secondary,#6B7280);"><div style="font-size:2.5rem;margin-bottom:12px;">🪑</div>' + (isAr ? 'لا توجد طاولات بعد' : 'No tables yet') + '</div>';
+          } else if (floors.length > 0) {
+            floors.forEach(function (floor) {
+              var floorTables = tables.filter(function (tbl) { return tbl.floorId === floor.id; });
+              html += '<div style="margin-bottom:20px;">';
+              html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
+              html += '<h4 style="margin:0;font-size:0.9375rem;font-weight:600;">' + Admin._escapeHtml(floor.name || 'Floor') + ' <span style="color:var(--text-secondary,#6B7280);font-weight:400;">(' + floorTables.length + ')</span></h4>';
+              html += '<div style="display:flex;gap:4px;">';
+              html += '<button class="btn btn-ghost btn-sm ds-edit-item" data-ds-type="floor" data-id="' + floor.id + '" style="padding:4px 8px;font-size:0.75rem;">' + (isAr ? 'تعديل' : 'Edit') + '</button>';
+              html += '<button class="btn btn-ghost btn-sm ds-delete-item" data-ds-type="floor" data-id="' + floor.id + '" style="padding:4px 8px;font-size:0.75rem;color:var(--danger,#ef4444);">' + (isAr ? 'حذف' : 'Delete') + '</button>';
+              html += '</div></div>';
+              html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;">';
+              floorTables.forEach(function (tbl) {
+                var sc = tbl.status === 'occupied' ? '#ef4444' : tbl.status === 'reserved' ? '#f59e0b' : '#22c55e';
+                html += '<div style="background:var(--card,#fff);border:2px solid ' + sc + ';border-radius:10px;padding:12px;text-align:center;position:relative;">';
+                html += '<div style="font-weight:700;font-size:1.1rem;">' + Admin._escapeHtml(tbl.name || '#' + (tbl.number || '')) + '</div>';
+                html += '<div style="font-size:0.75rem;color:' + sc + ';margin-top:4px;">' + (isAr ? (tbl.status === 'occupied' ? 'مشغولة' : tbl.status === 'reserved' ? 'محجوزة' : 'فارغة') : (tbl.status || 'free')) + '</div>';
+                html += '<div style="position:absolute;top:4px;left:4px;display:flex;gap:2px;">';
+                html += '<button class="btn btn-ghost btn-sm ds-edit-item" data-ds-type="table" data-id="' + tbl.id + '" style="padding:2px 4px;font-size:0.625rem;">✏️</button>';
+                html += '<button class="btn btn-ghost btn-sm ds-delete-item" data-ds-type="table" data-id="' + tbl.id + '" style="padding:2px 4px;font-size:0.625rem;color:var(--danger,#ef4444);">🗑️</button>';
+                html += '</div></div>';
+              });
+              html += '</div></div>';
+            });
+          } else {
+            html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;">';
+            tables.forEach(function (tbl) {
+              var sc = tbl.status === 'occupied' ? '#ef4444' : tbl.status === 'reserved' ? '#f59e0b' : '#22c55e';
+              html += '<div style="background:var(--card,#fff);border:2px solid ' + sc + ';border-radius:10px;padding:12px;text-align:center;position:relative;">';
+              html += '<div style="font-weight:700;font-size:1.1rem;">' + Admin._escapeHtml(tbl.name || '#' + (tbl.number || '')) + '</div>';
+              html += '<div style="font-size:0.75rem;color:' + sc + ';margin-top:4px;">' + (isAr ? (tbl.status === 'occupied' ? 'مشغولة' : tbl.status === 'reserved' ? 'محجوزة' : 'فارغة') : (tbl.status || 'free')) + '</div>';
+              html += '<div style="position:absolute;top:4px;left:4px;display:flex;gap:2px;">';
+              html += '<button class="btn btn-ghost btn-sm ds-edit-item" data-ds-type="table" data-id="' + tbl.id + '" style="padding:2px 4px;font-size:0.625rem;">✏️</button>';
+              html += '<button class="btn btn-ghost btn-sm ds-delete-item" data-ds-type="table" data-id="' + tbl.id + '" style="padding:2px 4px;font-size:0.625rem;color:var(--danger,#ef4444);">🗑️</button>';
+              html += '</div></div>';
+            });
+            html += '</div>';
+          }
+          break;
+
+        case 'features':
+          html += '<div style="max-width:700px;">';
+          function featToggle(label, desc, settingKey) {
+            var checked = st[settingKey] !== false ? ' checked' : '';
+            var row = '<div class="admin-settings-row">';
+            row += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t(label) + '</span><span class="admin-settings-label-desc">' + t(desc) + '</span></div>';
+            row += '<label class="admin-toggle"><input type="checkbox" class="ds-toggle" data-key="' + settingKey + '"' + checked + '><span class="admin-toggle-slider"></span></label>';
+            row += '</div>';
+            return row;
+          }
+          html += '<div class="admin-settings-card"><div class="admin-settings-card-header">' + t('ds_pos_features') + '</div><div class="admin-settings-card-body">';
+          html += featToggle('ds_order_discount', 'ds_order_discount_desc', 'featureDiscount');
+          html += featToggle('ds_hold_order', 'ds_hold_order_desc', 'featureHoldOrder');
+          html += featToggle('ds_table_mgmt', 'ds_table_mgmt_desc', 'featureTableManagement');
+          html += featToggle('ds_tips', 'ds_tips_desc', 'featureTips');
+          html += featToggle('ds_order_notes', 'ds_order_notes_desc', 'featureOrderNotes');
+          html += featToggle('ds_split_bill', 'ds_split_bill_desc', 'featureSplitBill');
+          html += featToggle('ds_table_transfer', 'ds_table_transfer_desc', 'featureTableTransfer');
+          html += featToggle('ds_customer_name', 'ds_customer_name_desc', 'featureCustomerName');
+          html += featToggle('ds_kitchen_display', 'ds_kitchen_display_desc', 'featureKitchenDisplay');
+          html += featToggle('ds_loyalty', 'ds_loyalty_desc', 'featureLoyalty');
+          html += featToggle('ds_inventory', 'ds_inventory_desc', 'featureInventory');
+          html += featToggle('ds_auto_print', 'ds_auto_print_desc', 'featureAutoPrint');
+          html += featToggle('ds_sound_effects', 'ds_sound_effects_desc', 'featureSoundEffects');
+          html += featToggle('ds_multi_payment', 'ds_multi_payment_desc', 'featureMultiPayment');
+          html += '</div></div>';
+          html += '<button class="btn btn-primary" id="ds-save-features" style="margin-top:16px;">' + t('ds_save') + '</button>';
+          html += '</div>';
+          break;
+
+        case 'business':
+          html += '<div style="max-width:700px;">';
+          function bizToggle(label, desc, settingKey) {
+            var checked = st[settingKey] !== false ? ' checked' : '';
+            var row = '<div class="admin-settings-row">';
+            row += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t(label) + '</span><span class="admin-settings-label-desc">' + t(desc) + '</span></div>';
+            row += '<label class="admin-toggle"><input type="checkbox" class="ds-toggle" data-key="' + settingKey + '"' + checked + '><span class="admin-toggle-slider"></span></label>';
+            row += '</div>';
+            return row;
+          }
+          function bizNumber(label, desc, settingKey, min, max, unit) {
+            var val = st[settingKey] !== undefined ? st[settingKey] : 0;
+            var row = '<div class="admin-settings-row">';
+            row += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t(label) + '</span><span class="admin-settings-label-desc">' + t(desc) + '</span></div>';
+            row += '<div class="form-group" style="max-width:120px;display:flex;align-items:center;gap:4px;">';
+            row += '<input type="number" class="form-input ds-number" data-key="' + settingKey + '" value="' + Admin._escapeHtml(String(val)) + '" min="' + (min || 0) + '" max="' + (max || 9999) + '">';
+            if (unit) row += '<span style="color:var(--text-secondary,#6B7280);font-size:0.8125rem;">' + unit + '</span>';
+            row += '</div></div>';
+            return row;
+          }
+          function bizText(label, desc, settingKey, placeholder) {
+            var val = st[settingKey] || '';
+            var row = '<div class="admin-settings-row">';
+            row += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t(label) + '</span><span class="admin-settings-label-desc">' + t(desc) + '</span></div>';
+            row += '<div class="form-group" style="flex:2"><input type="text" class="form-input ds-text" data-key="' + settingKey + '" value="' + Admin._escapeHtml(val) + '" placeholder="' + (placeholder || '') + '"></div>';
+            row += '</div>';
+            return row;
+          }
+          function bizTime(label, desc, settingKey) {
+            var val = st[settingKey] || '';
+            var row = '<div class="admin-settings-row">';
+            row += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t(label) + '</span><span class="admin-settings-label-desc">' + t(desc) + '</span></div>';
+            row += '<div class="form-group" style="max-width:120px"><input type="time" class="form-input ds-time" data-key="' + settingKey + '" value="' + Admin._escapeHtml(val) + '"></div>';
+            row += '</div>';
+            return row;
+          }
+          function bizSelect(label, desc, settingKey, options) {
+            var val = st[settingKey] || options[0].value;
+            var row = '<div class="admin-settings-row">';
+            row += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t(label) + '</span><span class="admin-settings-label-desc">' + t(desc) + '</span></div>';
+            row += '<div class="form-group" style="max-width:160px"><select class="form-input ds-select" data-key="' + settingKey + '">';
+            options.forEach(function (opt) {
+              row += '<option value="' + opt.value + '"' + (val === opt.value ? ' selected' : '') + '>' + opt.label + '</option>';
+            });
+            row += '</select></div></div>';
+            return row;
+          }
+          html += '<div class="admin-settings-card"><div class="admin-settings-card-header">' + t('ds_business') + '</div><div class="admin-settings-card-body">';
+          html += bizNumber('ds_min_order', 'ds_min_order_desc', 'dashboardMinOrder', 0, 99999, 'ل.س');
+          html += bizNumber('ds_max_discount', 'ds_max_discount_desc', 'dashboardMaxDiscount', 0, 100, '%');
+          html += bizSelect('ds_currency', 'ds_currency_desc', 'dashboardCurrency', [
+            { value: 'ل.س', label: 'ليرة سورية (ل.س)' },
+            { value: 'ل.ل', label: 'ليرة لبنانية (ل.ل)' },
+            { value: '$', label: 'دولار أمريكي ($)' }
+          ]);
+          html += bizToggle('ds_auto_reports', 'ds_auto_reports_desc', 'featureAutoReports');
+          html += bizText('ds_receipt_footer', 'ds_receipt_footer_desc', 'dashboardReceiptFooter', (isAr ? 'شكراً لزيارتكم' : 'Thank you for visiting'));
+          html += '</div></div>';
+          html += '<div class="admin-settings-card" style="margin-top:16px;"><div class="admin-settings-card-header">' + t('ds_opening_hours') + '</div><div class="admin-settings-card-body">';
+          html += bizToggle('ds_opening_hours', 'ds_opening_hours_desc', 'featureOpeningHours');
+          html += bizTime('ds_open_time', '', 'dashboardOpenTime');
+          html += bizTime('ds_close_time', '', 'dashboardCloseTime');
+          html += '</div></div>';
+          html += '<button class="btn btn-primary" id="ds-save-business" style="margin-top:16px;">' + t('ds_save') + '</button>';
+          html += '</div>';
+          break;
       }
+      html += '</div>';
 
-      function numberRow(key, label, desc, settingKey, min, max, unit) {
-        var val = st[settingKey] !== undefined ? st[settingKey] : 0;
-        var row = '<div class="admin-settings-row">';
-        row += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t(label) + '</span><span class="admin-settings-label-desc">' + t(desc) + '</span></div>';
-        row += '<div class="form-group" style="max-width:120px;display:flex;align-items:center;gap:4px;">';
-        row += '<input type="number" class="form-input ds-number" data-key="' + settingKey + '" value="' + Admin._escapeHtml(String(val)) + '" min="' + (min || 0) + '" max="' + (max || 9999) + '">';
-        if (unit) row += '<span style="color:var(--text-secondary,#6B7280);font-size:0.8125rem;">' + unit + '</span>';
-        row += '</div></div>';
-        return row;
-      }
-
-      function textRow(key, label, desc, settingKey, placeholder) {
-        var val = st[settingKey] || '';
-        var row = '<div class="admin-settings-row">';
-        row += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t(label) + '</span><span class="admin-settings-label-desc">' + t(desc) + '</span></div>';
-        row += '<div class="form-group" style="flex:2"><input type="text" class="form-input ds-text" data-key="' + settingKey + '" value="' + Admin._escapeHtml(val) + '" placeholder="' + (placeholder || '') + '"></div>';
-        row += '</div>';
-        return row;
-      }
-
-      function timeRow(key, label, desc, settingKey) {
-        var val = st[settingKey] || '';
-        var row = '<div class="admin-settings-row">';
-        row += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t(label) + '</span><span class="admin-settings-label-desc">' + t(desc) + '</span></div>';
-        row += '<div class="form-group" style="max-width:120px"><input type="time" class="form-input ds-time" data-key="' + settingKey + '" value="' + Admin._escapeHtml(val) + '"></div>';
-        row += '</div>';
-        return row;
-      }
-
-      function selectRow(key, label, desc, settingKey, options) {
-        var val = st[settingKey] || options[0].value;
-        var row = '<div class="admin-settings-row">';
-        row += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t(label) + '</span><span class="admin-settings-label-desc">' + t(desc) + '</span></div>';
-        row += '<div class="form-group" style="max-width:160px"><select class="form-input ds-select" data-key="' + settingKey + '">';
-        options.forEach(function (opt) {
-          row += '<option value="' + opt.value + '"' + (val === opt.value ? ' selected' : '') + '>' + opt.label + '</option>';
-        });
-        row += '</select></div></div>';
-        return row;
-      }
-
-      html += '<div class="admin-settings-card">';
-      html += '<div class="admin-settings-card-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> ' + t('ds_pos_features') + '</div>';
-      html += '<div class="admin-settings-card-body">';
-      html += toggleRow('discount', 'ds_order_discount', 'ds_order_discount_desc', 'featureDiscount');
-      html += toggleRow('hold', 'ds_hold_order', 'ds_hold_order_desc', 'featureHoldOrder');
-      html += toggleRow('tables', 'ds_table_mgmt', 'ds_table_mgmt_desc', 'featureTableManagement');
-      html += toggleRow('tips', 'ds_tips', 'ds_tips_desc', 'featureTips');
-      html += toggleRow('notes', 'ds_order_notes', 'ds_order_notes_desc', 'featureOrderNotes');
-      html += toggleRow('split', 'ds_split_bill', 'ds_split_bill_desc', 'featureSplitBill');
-      html += toggleRow('transfer', 'ds_table_transfer', 'ds_table_transfer_desc', 'featureTableTransfer');
-      html += toggleRow('customer', 'ds_customer_name', 'ds_customer_name_desc', 'featureCustomerName');
-      html += toggleRow('kitchen', 'ds_kitchen_display', 'ds_kitchen_display_desc', 'featureKitchenDisplay');
-      html += toggleRow('loyalty', 'ds_loyalty', 'ds_loyalty_desc', 'featureLoyalty');
-      html += toggleRow('inventory', 'ds_inventory', 'ds_inventory_desc', 'featureInventory');
-      html += toggleRow('autoprint', 'ds_auto_print', 'ds_auto_print_desc', 'featureAutoPrint');
-      html += toggleRow('sound', 'ds_sound_effects', 'ds_sound_effects_desc', 'featureSoundEffects');
-      html += toggleRow('multipay', 'ds_multi_payment', 'ds_multi_payment_desc', 'featureMultiPayment');
+      html += '<div class="modal-overlay hidden" id="ds-modal-overlay"><div class="modal"><div class="modal-header"><h3 id="ds-modal-title"></h3>';
+      html += '<button class="btn btn-ghost btn-icon" id="ds-modal-close"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>';
+      html += '<div class="modal-body"><div id="ds-modal-error" class="hidden" style="color:#ef4444;text-align:center;margin-bottom:12px;font-size:14px;"></div>';
+      html += '<div id="ds-modal-body"></div></div>';
+      html += '<div class="modal-footer"><button class="btn btn-ghost" id="ds-modal-cancel">' + t('close_btn') + '</button><button class="btn btn-primary" id="ds-modal-save">' + t('save') + '</button></div>';
       html += '</div></div>';
-
-      html += '<div class="admin-settings-card">';
-      html += '<div class="admin-settings-card-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg> ' + t('ds_business') + '</div>';
-      html += '<div class="admin-settings-card-body">';
-      html += numberRow('minorder', 'ds_min_order', 'ds_min_order_desc', 'dashboardMinOrder', 0, 99999, 'ل.س');
-      html += numberRow('maxdisc', 'ds_max_discount', 'ds_max_discount_desc', 'dashboardMaxDiscount', 0, 100, '%');
-      html += selectRow('currency', 'ds_currency', 'ds_currency_desc', 'dashboardCurrency', [
-        { value: 'ل.س', label: 'ليرة سورية (ل.س)' },
-        { value: 'ل.ل', label: 'ليرة لبنانية (ل.ل)' },
-        { value: '$', label: 'دولار أمريكي ($)' }
-      ]);
-      html += toggleRow('auto_reports', 'ds_auto_reports', 'ds_auto_reports_desc', 'featureAutoReports');
-      html += textRow('receipt_footer', 'ds_receipt_footer', 'ds_receipt_footer_desc', 'dashboardReceiptFooter', (isAr ? 'شكراً لزيارتكم' : 'Thank you for visiting'));
-      html += '</div></div>';
-
-      html += '<div class="admin-settings-card">';
-      html += '<div class="admin-settings-card-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> ' + t('ds_opening_hours') + '</div>';
-      html += '<div class="admin-settings-card-body">';
-      html += toggleRow('hours_enabled', 'ds_opening_hours', 'ds_opening_hours_desc', 'featureOpeningHours');
-      html += timeRow('open_time', 'ds_open_time', '', 'dashboardOpenTime');
-      html += timeRow('close_time', 'ds_close_time', '', 'dashboardCloseTime');
-      html += '</div></div>';
-
-      html += '<button class="btn btn-primary btn-lg admin-settings-save" id="ds-save-btn" style="margin-top:20px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> ' + t('ds_save') + '</button>';
 
       html += '</div></div>';
       return html;
+    },
+
+    openDsModal(type, editId) {
+      var self = this;
+      var t = Nawa.I18n.t;
+      var isAr = (Nawa.I18n.getLang() === 'ar');
+      var modal = document.getElementById('ds-modal-overlay');
+      var title = document.getElementById('ds-modal-title');
+      var body = document.getElementById('ds-modal-body');
+      var errEl = document.getElementById('ds-modal-error');
+      if (!modal || !title || !body) return;
+      if (errEl) errEl.classList.add('hidden');
+
+      var item = null;
+      if (editId) {
+        if (type === 'product') item = (this.state.products || []).find(function (p) { return p.id === editId; });
+        else if (type === 'category') item = (this.state.categories || []).find(function (c) { return c.id === editId; });
+        else if (type === 'table') item = (this.state.tables || []).find(function (tbl) { return tbl.id === editId; });
+        else if (type === 'floor') item = (this.state.floors || []).find(function (f) { return f.id === editId; });
+      }
+
+      var html = '';
+      if (type === 'product') {
+        title.textContent = item ? (isAr ? 'تعديل منتج' : 'Edit Product') : (isAr ? 'إضافة منتج' : 'Add Product');
+        var cats = this.state.categories || [];
+        html += '<div class="form-group"><label class="form-label">' + (isAr ? 'اسم المنتج' : 'Product Name') + ' *</label>';
+        html += '<input type="text" class="form-input" id="ds-m-name" value="' + Admin._escapeHtml(item ? item.name : '') + '" placeholder="' + (isAr ? 'مثال: همبرغر' : 'e.g. Burger') + '"></div>';
+        html += '<div class="form-group"><label class="form-label">' + (isAr ? 'الاسم بالإنجليزية' : 'English Name') + '</label>';
+        html += '<input type="text" class="form-input" id="ds-m-nameEn" value="' + Admin._escapeHtml(item ? (item.nameEn || '') : '') + '" placeholder="' + (isAr ? 'اختياري' : 'Optional') + '"></div>';
+        html += '<div style="display:flex;gap:12px;">';
+        html += '<div class="form-group" style="flex:1"><label class="form-label">' + t('price') + ' *</label>';
+        html += '<input type="number" class="form-input" id="ds-m-price" value="' + (item ? item.price : '') + '" min="0" step="100"></div>';
+        html += '<div class="form-group" style="flex:1"><label class="form-label">' + (isAr ? 'الباركود' : 'Barcode') + '</label>';
+        html += '<input type="text" class="form-input" id="ds-m-barcode" value="' + Admin._escapeHtml(item ? (item.barcode || '') : '') + '"></div>';
+        html += '</div>';
+        html += '<div class="form-group"><label class="form-label">' + (isAr ? 'الفئة' : 'Category') + '</label>';
+        html += '<select class="form-input" id="ds-m-categoryId"><option value="">' + (isAr ? '-- بدون فئة --' : '-- None --') + '</option>';
+        cats.forEach(function (c) {
+          html += '<option value="' + c.id + '"' + (item && item.categoryId === c.id ? ' selected' : '') + '>' + Admin._escapeHtml(c.name || '') + '</option>';
+        });
+        html += '</select></div>';
+        html += '<div class="form-group"><label class="form-label">' + (isAr ? 'ملاحظات' : 'Notes') + '</label>';
+        html += '<textarea class="form-input" id="ds-m-notes" rows="2" style="resize:vertical;">' + Admin._escapeHtml(item ? (item.notes || '') : '') + '</textarea></div>';
+      } else if (type === 'category') {
+        title.textContent = item ? (isAr ? 'تعديل فئة' : 'Edit Category') : (isAr ? 'إضافة فئة' : 'Add Category');
+        html += '<div class="form-group"><label class="form-label">' + (isAr ? 'اسم الفئة' : 'Category Name') + ' *</label>';
+        html += '<input type="text" class="form-input" id="ds-m-name" value="' + Admin._escapeHtml(item ? item.name : '') + '" placeholder="' + (isAr ? 'مثال: مشروبات' : 'e.g. Drinks') + '"></div>';
+        html += '<div class="form-group"><label class="form-label">' + (isAr ? 'الترتيب' : 'Sort Order') + '</label>';
+        html += '<input type="number" class="form-input" id="ds-m-sortOrder" value="' + (item && item.sortOrder !== undefined ? item.sortOrder : 0) + '" min="0"></div>';
+      } else if (type === 'table') {
+        title.textContent = item ? (isAr ? 'تعديل طاولة' : 'Edit Table') : (isAr ? 'إضافة طاولة' : 'Add Table');
+        var floors = this.state.floors || [];
+        html += '<div style="display:flex;gap:12px;">';
+        html += '<div class="form-group" style="flex:1"><label class="form-label">' + (isAr ? 'رقم الطاولة' : 'Table Number') + ' *</label>';
+        html += '<input type="number" class="form-input" id="ds-m-number" value="' + (item ? item.number : '') + '" min="1"></div>';
+        html += '<div class="form-group" style="flex:1"><label class="form-label">' + (isAr ? 'اسم الطاولة' : 'Table Name') + '</label>';
+        html += '<input type="text" class="form-input" id="ds-m-name" value="' + Admin._escapeHtml(item ? (item.name || '') : '') + '" placeholder="' + (isAr ? 'اختياري' : 'Optional') + '"></div>';
+        html += '</div>';
+        html += '<div class="form-group"><label class="form-label">' + (isAr ? 'عدد الأشخاص' : 'Seats') + '</label>';
+        html += '<input type="number" class="form-input" id="ds-m-seats" value="' + (item ? (item.seats || 4) : 4) + '" min="1" max="50"></div>';
+        html += '<div class="form-group"><label class="form-label">' + (isAr ? 'الأرضية' : 'Floor') + '</label>';
+        html += '<select class="form-input" id="ds-m-floorId"><option value="">' + (isAr ? '-- بدون أرضية --' : '-- No Floor --') + '</option>';
+        floors.forEach(function (f) {
+          html += '<option value="' + f.id + '"' + (item && item.floorId === f.id ? ' selected' : '') + '>' + Admin._escapeHtml(f.name || '') + '</option>';
+        });
+        html += '</select></div>';
+      } else if (type === 'floor') {
+        title.textContent = item ? (isAr ? 'تعديل أرضية' : 'Edit Floor') : (isAr ? 'إضافة أرضية' : 'Add Floor');
+        html += '<div class="form-group"><label class="form-label">' + (isAr ? 'اسم الأرضية' : 'Floor Name') + ' *</label>';
+        html += '<input type="text" class="form-input" id="ds-m-name" value="' + Admin._escapeHtml(item ? item.name : '') + '" placeholder="' + (isAr ? 'مثال: الطابق الأول' : 'e.g. Ground Floor') + '"></div>';
+        html += '<div class="form-group"><label class="form-label">' + (isAr ? 'الترتيب' : 'Sort Order') + '</label>';
+        html += '<input type="number" class="form-input" id="ds-m-sortOrder" value="' + (item && item.sortOrder !== undefined ? item.sortOrder : 0) + '" min="0"></div>';
+      }
+
+      body.innerHTML = html;
+      this.state.dsModal = { open: true, type: type, editId: editId || null };
+      modal.classList.remove('hidden');
+    },
+
+    closeDsModal() {
+      var modal = document.getElementById('ds-modal-overlay');
+      if (modal) modal.classList.add('hidden');
+      this.state.dsModal = { open: false, type: '', editId: null };
+    },
+
+    async saveDsModalItem() {
+      var self = this;
+      var m = this.state.dsModal;
+      var errEl = document.getElementById('ds-modal-error');
+      var isAr = (Nawa.I18n.getLang() === 'ar');
+
+      try {
+        if (m.type === 'product') {
+          var name = (document.getElementById('ds-m-name') || {}).value || '';
+          var nameEn = (document.getElementById('ds-m-nameEn') || {}).value || '';
+          var price = parseFloat((document.getElementById('ds-m-price') || {}).value) || 0;
+          var barcode = (document.getElementById('ds-m-barcode') || {}).value || '';
+          var categoryId = (document.getElementById('ds-m-categoryId') || {}).value || '';
+          var notes = (document.getElementById('ds-m-notes') || {}).value || '';
+          if (!name.trim()) { if (errEl) { errEl.textContent = isAr ? 'اسم المنتج مطلوب' : 'Product name is required'; errEl.classList.remove('hidden'); } return; }
+          if (m.editId) {
+            var existing = this.state.products.find(function (p) { return p.id === m.editId; });
+            if (existing) {
+              existing.name = name.trim();
+              existing.nameEn = nameEn.trim();
+              existing.price = price;
+              existing.barcode = barcode.trim();
+              existing.categoryId = categoryId;
+              existing.notes = notes.trim();
+              await DB.update(S.PRODUCTS, existing.id, existing);
+            }
+          } else {
+            var newItem = { id: Date.now().toString(), name: name.trim(), nameEn: nameEn.trim(), price: price, barcode: barcode.trim(), categoryId: categoryId, notes: notes.trim(), active: true, createdAt: new Date().toISOString() };
+            await DB.add(S.PRODUCTS, newItem);
+            this.state.products.push(newItem);
+          }
+        } else if (m.type === 'category') {
+          var name = (document.getElementById('ds-m-name') || {}).value || '';
+          var sortOrder = parseInt((document.getElementById('ds-m-sortOrder') || {}).value) || 0;
+          if (!name.trim()) { if (errEl) { errEl.textContent = isAr ? 'اسم الفئة مطلوب' : 'Category name is required'; errEl.classList.remove('hidden'); } return; }
+          if (m.editId) {
+            var existing = this.state.categories.find(function (c) { return c.id === m.editId; });
+            if (existing) { existing.name = name.trim(); existing.sortOrder = sortOrder; await DB.update(S.CATEGORIES, existing.id, existing); }
+          } else {
+            var newItem = { id: Date.now().toString(), name: name.trim(), sortOrder: sortOrder, createdAt: new Date().toISOString() };
+            await DB.add(S.CATEGORIES, newItem);
+            this.state.categories.push(newItem);
+          }
+        } else if (m.type === 'table') {
+          var number = parseInt((document.getElementById('ds-m-number') || {}).value) || 0;
+          var name = (document.getElementById('ds-m-name') || {}).value || '';
+          var seats = parseInt((document.getElementById('ds-m-seats') || {}).value) || 4;
+          var floorId = (document.getElementById('ds-m-floorId') || {}).value || '';
+          if (!number) { if (errEl) { errEl.textContent = isAr ? 'رقم الطاولة مطلوب' : 'Table number is required'; errEl.classList.remove('hidden'); } return; }
+          if (m.editId) {
+            var existing = this.state.tables.find(function (t) { return t.id === m.editId; });
+            if (existing) {
+              existing.number = number;
+              existing.name = name.trim();
+              existing.seats = seats;
+              existing.floorId = floorId;
+              await DB.update(S.TABLES, existing.id, existing);
+            }
+          } else {
+            var newItem = { id: Date.now().toString(), number: number, name: name.trim(), seats: seats, floorId: floorId, status: 'free', createdAt: new Date().toISOString() };
+            await DB.add(S.TABLES, newItem);
+            this.state.tables.push(newItem);
+          }
+        } else if (m.type === 'floor') {
+          var name = (document.getElementById('ds-m-name') || {}).value || '';
+          var sortOrder = parseInt((document.getElementById('ds-m-sortOrder') || {}).value) || 0;
+          if (!name.trim()) { if (errEl) { errEl.textContent = isAr ? 'اسم الأرضية مطلوب' : 'Floor name is required'; errEl.classList.remove('hidden'); } return; }
+          if (m.editId) {
+            var existing = this.state.floors.find(function (f) { return f.id === m.editId; });
+            if (existing) { existing.name = name.trim(); existing.sortOrder = sortOrder; await DB.update(S.FLOORS, existing.id, existing); }
+          } else {
+            var newItem = { id: Date.now().toString(), name: name.trim(), sortOrder: sortOrder, createdAt: new Date().toISOString() };
+            await DB.add(S.FLOORS, newItem);
+            this.state.floors.push(newItem);
+          }
+        }
+
+        this.closeDsModal();
+        this.render();
+        this.showNotification(isAr ? 'تم الحفظ بنجاح' : 'Saved successfully', 'success');
+      } catch (e) {
+        if (errEl) {
+          errEl.textContent = isAr ? 'حدث خطأ، حاول مرة أخرى' : 'An error occurred, try again';
+          errEl.classList.remove('hidden');
+        }
+      }
+    },
+
+    async deleteDsItem(type, id) {
+      var isAr = (Nawa.I18n.getLang() === 'ar');
+      var msg = isAr ? 'هل أنت متأكد من الحذف؟' : 'Are you sure you want to delete?';
+      if (!confirm(msg)) return;
+
+      try {
+        if (type === 'product') {
+          await DB.hardDelete(S.PRODUCTS, id);
+          this.state.products = this.state.products.filter(function (p) { return p.id !== id; });
+        } else if (type === 'category') {
+          await DB.hardDelete(S.CATEGORIES, id);
+          this.state.categories = this.state.categories.filter(function (c) { return c.id !== id; });
+        } else if (type === 'table') {
+          await DB.hardDelete(S.TABLES, id);
+          this.state.tables = this.state.tables.filter(function (t) { return t.id !== id; });
+        } else if (type === 'floor') {
+          await DB.hardDelete(S.FLOORS, id);
+          this.state.floors = this.state.floors.filter(function (f) { return f.id !== id; });
+        }
+        this.render();
+        this.showNotification(isAr ? 'تم الحذف بنجاح' : 'Deleted successfully', 'success');
+      } catch (e) {
+        this.showNotification(isAr ? 'خطأ في الحذف' : 'Error deleting', 'error');
+      }
     },
 
     renderSettings() {
@@ -1385,9 +1736,50 @@
       }
 
       if (this.state.activeTab === 'dashboard-settings') {
-        var dsSaveBtn = document.getElementById('ds-save-btn');
-        if (dsSaveBtn) {
-          dsSaveBtn.addEventListener('click', function () { self.saveDashboardSettings(); });
+        document.querySelectorAll('.ds-tab-btn').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            self.state.dsActiveTab = btn.getAttribute('data-ds-tab');
+            self.render();
+          });
+        });
+
+        document.querySelectorAll('.ds-add-item').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            self.openDsModal(btn.getAttribute('data-ds-type'));
+          });
+        });
+
+        document.querySelectorAll('.ds-edit-item').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            self.openDsModal(btn.getAttribute('data-ds-type'), btn.getAttribute('data-id'));
+          });
+        });
+
+        document.querySelectorAll('.ds-delete-item').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            self.deleteDsItem(btn.getAttribute('data-ds-type'), btn.getAttribute('data-id'));
+          });
+        });
+
+        var dsModalClose = document.getElementById('ds-modal-close');
+        var dsModalCancel = document.getElementById('ds-modal-cancel');
+        var dsModalOverlay = document.getElementById('ds-modal-overlay');
+        var dsModalSave = document.getElementById('ds-modal-save');
+
+        var closeDsModal = function () { self.closeDsModal(); };
+        if (dsModalClose) dsModalClose.addEventListener('click', closeDsModal);
+        if (dsModalCancel) dsModalCancel.addEventListener('click', closeDsModal);
+        if (dsModalOverlay) dsModalOverlay.addEventListener('click', function (e) { if (e.target === dsModalOverlay) closeDsModal(); });
+        if (dsModalSave) dsModalSave.addEventListener('click', function () { self.saveDsModalItem(); });
+
+        var dsSaveFeat = document.getElementById('ds-save-features');
+        if (dsSaveFeat) {
+          dsSaveFeat.addEventListener('click', function () { self.saveDashboardSettings(); });
+        }
+
+        var dsSaveBiz = document.getElementById('ds-save-business');
+        if (dsSaveBiz) {
+          dsSaveBiz.addEventListener('click', function () { self.saveDashboardSettings(); });
         }
       }
     }
