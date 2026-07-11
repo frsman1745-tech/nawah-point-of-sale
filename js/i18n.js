@@ -344,6 +344,16 @@
     is_active: { ar: 'نشط', en: 'Active' },
     is_inactive: { ar: 'غير نشط', en: 'Inactive' },
     created_at: { ar: 'تاريخ الإنشاء', en: 'Created' },
+    add_employee: { ar: 'إضافة موظف', en: 'Add Employee' },
+    employee_username: { ar: 'اسم المستخدم', en: 'Username' },
+    employee_password: { ar: 'كلمة المرور', en: 'Password' },
+    employee_role: { ar: 'الدور', en: 'Role' },
+    role_cashier: { ar: 'كاشير', en: 'Cashier' },
+    role_admin: { ar: 'مدير', en: 'Admin' },
+    employee_name_en: { ar: 'الاسم بالإنجليزية', en: 'English Name' },
+    employee_added: { ar: 'تم إضافة الموظف بنجاح', en: 'Employee added successfully' },
+    employee_add_error: { ar: 'فشل إضافة الموظف', en: 'Failed to add employee' },
+    required_field: { ar: 'هذا الحقل مطلوب', en: 'This field is required' },
 
     // ── Admin: Order Modal ──
     order_details: { ar: 'تفاصيل الطلب', en: 'Order Details' },

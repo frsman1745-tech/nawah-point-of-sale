@@ -639,8 +639,18 @@
       var self = this;
       var employees = this.state.employees;
       var orders = this.state.orders;
+      var isAr = Nawa.I18n.getLang() === 'ar';
 
-      var html = '<div class="admin-employees-grid">';
+      var html = '<div class="admin-employees">';
+
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">';
+      html += '<h2 style="margin:0;font-size:1.2rem;font-weight:700;color:var(--navy,#0E1C3D);">' + Nawa.I18n.t('employees') + ' (' + employees.length + ')</h2>';
+      html += '<button class="btn btn-primary" id="add-employee-btn" style="display:flex;align-items:center;gap:6px;">';
+      html += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+      html += Nawa.I18n.t('add_employee');
+      html += '</button></div>';
+
+      html += '<div class="admin-employees-grid">';
 
       if (employees.length === 0) {
         html += '<div class="admin-empty"><div class="admin-empty-title">' + Nawa.I18n.t('no_employees') + '</div></div>';
@@ -676,6 +686,33 @@
         html += '</div>';
         html += '</div>';
       });
+
+      html += '</div>';
+
+      html += '<div class="modal-overlay hidden" id="employee-modal-overlay">';
+      html += '<div class="modal">';
+      html += '<div class="modal-header"><h3>' + Nawa.I18n.t('add_employee') + '</h3>';
+      html += '<button class="btn btn-ghost btn-icon" id="employee-modal-close"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>';
+      html += '<div class="modal-body">';
+      html += '<div id="employee-error" class="hidden" style="color:#ef4444;text-align:center;margin-bottom:12px;font-size:14px;"></div>';
+      html += '<div class="form-group"><label>' + Nawa.I18n.t('employee_name') + ' *</label>';
+      html += '<input type="text" class="form-input" id="emp-name" placeholder="' + Nawa.I18n.t('employee_name') + '"></div>';
+      html += '<div class="form-group"><label>' + Nawa.I18n.t('employee_name_en') + '</label>';
+      html += '<input type="text" class="form-input" id="emp-name-en" placeholder="' + Nawa.I18n.t('employee_name_en') + '" dir="ltr"></div>';
+      html += '<div class="form-group"><label>' + Nawa.I18n.t('employee_username') + ' *</label>';
+      html += '<input type="text" class="form-input" id="emp-username" placeholder="' + Nawa.I18n.t('employee_username') + '" dir="ltr" autocomplete="off"></div>';
+      html += '<div class="form-group"><label>' + Nawa.I18n.t('employee_password') + ' *</label>';
+      html += '<input type="text" class="form-input" id="emp-password" placeholder="' + Nawa.I18n.t('employee_password') + '" dir="ltr" autocomplete="off"></div>';
+      html += '<div class="form-group"><label>' + Nawa.I18n.t('employee_role') + '</label>';
+      html += '<select class="form-input" id="emp-role">';
+      html += '<option value="cashier">' + Nawa.I18n.t('role_cashier') + '</option>';
+      html += '<option value="admin">' + Nawa.I18n.t('role_admin') + '</option>';
+      html += '</select></div>';
+      html += '</div>';
+      html += '<div class="modal-footer">';
+      html += '<button class="btn btn-ghost" id="employee-modal-cancel">' + Nawa.I18n.t('close_btn') + '</button>';
+      html += '<button class="btn btn-primary" id="employee-modal-save">' + Nawa.I18n.t('save') + '</button>';
+      html += '</div></div></div>';
 
       html += '</div>';
       return html;
@@ -893,6 +930,66 @@
       }
     },
 
+    async addEmployee() {
+      var name = (document.getElementById('emp-name').value || '').trim();
+      var nameEn = (document.getElementById('emp-name-en').value || '').trim();
+      var username = (document.getElementById('emp-username').value || '').trim();
+      var password = (document.getElementById('emp-password').value || '').trim();
+      var role = document.getElementById('emp-role').value;
+      var errorEl = document.getElementById('employee-error');
+
+      if (errorEl) errorEl.classList.add('hidden');
+
+      if (!name || !username || !password) {
+        if (errorEl) {
+          errorEl.textContent = Nawa.I18n.t('required_field');
+          errorEl.classList.remove('hidden');
+        }
+        return;
+      }
+
+      for (var i = 0; i < this.state.employees.length; i++) {
+        if (this.state.employees[i].username === username) {
+          if (errorEl) {
+            errorEl.textContent = Nawa.I18n.getLang() === 'ar' ? 'اسم المستخدم مستخدم بالفعل' : 'Username already taken';
+            errorEl.classList.remove('hidden');
+          }
+          return;
+        }
+      }
+
+      try {
+        var user = window.Nawa.Auth.getCurrentUser();
+        var newEmp = {
+          name: name,
+          nameEn: nameEn || name,
+          username: username,
+          password: password,
+          role: role || 'cashier',
+          isActive: true,
+          restaurantId: user ? user.restaurantId : '',
+          createdAt: new Date().toISOString()
+        };
+
+        await DB.add(S.EMPLOYEES, newEmp);
+
+        if (window.Nawa.Audit && window.Nawa.Audit.log) {
+          await window.Nawa.Audit.log('add', 'employees', null, { name: name, username: username, role: role });
+        }
+
+        this.showNotification(Nawa.I18n.t('employee_added'), 'success');
+        var overlay = document.getElementById('employee-modal-overlay');
+        if (overlay) overlay.classList.add('hidden');
+        await this.loadData();
+        this.render();
+      } catch (e) {
+        if (errorEl) {
+          errorEl.textContent = Nawa.I18n.t('employee_add_error');
+          errorEl.classList.remove('hidden');
+        }
+      }
+    },
+
     async saveSettings() {
       var taxEl = document.getElementById('setting-tax');
       var receiptEl = document.getElementById('setting-receipt-header');
@@ -1010,6 +1107,29 @@
           self.toggleEmployeeStatus(btn.getAttribute('data-toggle-emp'));
         });
       });
+
+      var addEmpBtn = document.getElementById('add-employee-btn');
+      if (addEmpBtn) {
+        addEmpBtn.addEventListener('click', function () {
+          var overlay = document.getElementById('employee-modal-overlay');
+          if (overlay) overlay.classList.remove('hidden');
+        });
+      }
+
+      var empModalClose = document.getElementById('employee-modal-close');
+      var empModalCancel = document.getElementById('employee-modal-cancel');
+      var empModalOverlay = document.getElementById('employee-modal-overlay');
+      var empModalSave = document.getElementById('employee-modal-save');
+
+      var closeEmpModal = function () {
+        var overlay = document.getElementById('employee-modal-overlay');
+        if (overlay) overlay.classList.add('hidden');
+      };
+
+      if (empModalClose) empModalClose.addEventListener('click', closeEmpModal);
+      if (empModalCancel) empModalCancel.addEventListener('click', closeEmpModal);
+      if (empModalOverlay) empModalOverlay.addEventListener('click', function (e) { if (e.target === empModalOverlay) closeEmpModal(); });
+      if (empModalSave) empModalSave.addEventListener('click', function () { self.addEmployee(); });
 
       if (this.state.activeTab === 'audit') {
         var dateFrom = document.getElementById('audit-date-from');
