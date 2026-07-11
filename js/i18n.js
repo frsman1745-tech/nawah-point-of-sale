@@ -251,7 +251,122 @@
     shape: { ar: 'الشكل', en: 'Shape' },
     round: { ar: 'دائري', en: 'Round' },
     square: { ar: 'مربع', en: 'Square' },
-    rectangle: { ar: 'مستطيل', en: 'Rectangle' }
+    rectangle: { ar: 'مستطيل', en: 'Rectangle' },
+
+    // ── Admin: Audit ──
+    date_time: { ar: 'التاريخ والوقت', en: 'Date & Time' },
+    user: { ar: 'المستخدم', en: 'User' },
+    details: { ar: 'التفاصيل', en: 'Details' },
+    fingerprint: { ar: 'البصمة', en: 'Fingerprint' },
+    no_records: { ar: 'لا توجد سجلات', en: 'No records' },
+    no_records_desc: { ar: 'لم يتم تسجيل أي تعديلات بعد', en: 'No modifications recorded yet' },
+    record_details: { ar: 'تفاصيل السجل:', en: 'Record details:' },
+    no_details: { ar: 'لا توجد تفاصيل', en: 'No details' },
+    audit_integrity_ok: { ar: 'سجل التعديلات سليم', en: 'Audit log is intact' },
+    audit_tampered: { ar: 'تم العثور على تعديلات غير مصرح بها', en: 'Unauthorized modifications detected' },
+    audit_tampered_warn: { ar: 'تم العثور على تعديلات مشبوهة في السجل!', en: 'Suspicious modifications found in audit log!' },
+    showing_records: { ar: 'عرض', en: 'Showing' },
+    records_of: { ar: 'من', en: 'of' },
+
+    // ── Admin: Actions ──
+    action_add: { ar: 'إضافة', en: 'Add' },
+    action_edit: { ar: 'تعديل', en: 'Edit' },
+    action_delete: { ar: 'حذف', en: 'Delete' },
+    action_payment: { ar: 'دفع', en: 'Payment' },
+    action_auth: { ar: 'مصادقة', en: 'Auth' },
+    action_login: { ar: 'تسجيل دخول', en: 'Login' },
+    action_logout: { ar: 'تسجيل خروج', en: 'Logout' },
+    action_default: { ar: 'إجراء', en: 'Action' },
+
+    // ── Admin: Stores ──
+    store_products: { ar: 'المنتجات', en: 'Products' },
+    store_orders: { ar: 'الطلبات', en: 'Orders' },
+    store_tables: { ar: 'الطاولات', en: 'Tables' },
+    store_employees: { ar: 'الموظفين', en: 'Employees' },
+    store_categories: { ar: 'الفئات', en: 'Categories' },
+    store_settings: { ar: 'الإعدادات', en: 'Settings' },
+    store_customers: { ar: 'العملاء', en: 'Customers' },
+    store_audit_log: { ar: 'سجل التعديلات', en: 'Audit Log' },
+    store_floors: { ar: 'الطوابق', en: 'Floors' },
+
+    // ── Admin: Settings ──
+    tax_rate: { ar: 'نسبة الضريبة (%)', en: 'Tax Rate (%)' },
+    tax_rate_desc: { ar: 'القيمة الافتراضية 15%', en: 'Default 15%' },
+    receipt_header: { ar: 'نص رأس الإيصال', en: 'Receipt Header' },
+    receipt_header_desc: { ar: 'يظهر في أعلى الإيصال المطبوع', en: 'Printed at top of receipt' },
+    sync_interval: { ar: 'فترة المزامنة (ثانية)', en: 'Sync Interval (seconds)' },
+    sync_interval_desc: { ar: 'كمية تكرار المزامنة مع السيرفر', en: 'How often to sync with server' },
+    sound_print: { ar: 'الصوت والطباعة', en: 'Sound & Print' },
+    sound_effects: { ar: 'المؤثرات الصوتية', en: 'Sound Effects' },
+    sound_effects_desc: { ar: 'تشغيل أصوات عند إجراء المعاملات', en: 'Play sounds for transactions' },
+    auto_print: { ar: 'الطباعة التلقائية', en: 'Auto Print' },
+    auto_print_desc: { ar: 'طباعة الإيصال تلقائياً عند إتمام الطلب', en: 'Auto-print receipt on order completion' },
+    save_settings: { ar: 'حفظ الإعدادات', en: 'Save Settings' },
+
+    // ── Admin: CSV Export ──
+    csv_header: { ar: 'التاريخ,المستخدم,الإجراء,السجل,البصمة,التفاصيل', en: 'Date,User,Action,Record,Fingerprint,Details' },
+
+    // ── POS: Cashier ──
+    qty_label: { ar: 'الكمية', en: 'Qty' },
+    price_label: { ar: 'السعر', en: 'Price' },
+    tax_label: { ar: 'الضريبة', en: 'Tax' },
+    discount_label: { ar: 'الخصم', en: 'Discount' },
+    empty_cart_msg: { ar: 'ابدأ بإضافة منتجات من القائمة', en: 'Start adding products from the menu' },
+    add_items_btn: { ar: 'إضافة أصناف', en: 'Add Items' },
+    cart_items_label: { ar: 'أصناف في السلة', en: 'items in cart' },
+    pay_btn: { ar: 'دفع', en: 'Pay' },
+    hold_btn: { ar: 'تعليق', en: 'Hold' },
+    remove_btn: { ar: 'إزالة', en: 'Remove' },
+    payment_method_cash: { ar: 'نقدي', en: 'Cash' },
+    payment_title: { ar: 'الدفع', en: 'Payment' },
+    amount_received_label: { ar: 'المبلغ المستلم', en: 'Amount Received' },
+    change_label: { ar: 'المتبقي', en: 'Change' },
+    confirm_payment_btn: { ar: 'تأكيد الدفع', en: 'Confirm Payment' },
+    order_submitted_msg: { ar: 'تم إرسال الطلب بنجاح', en: 'Order submitted successfully' },
+    scan_or_search: { ar: 'امسح الباركود أو ابحث...', en: 'Scan barcode or search...' },
+    all_categories: { ar: 'الكل', en: 'All' },
+    takeaway_label: { ar: 'تيك أواي', en: 'Takeaway' },
+    new_order_btn: { ar: 'طلب جديد', en: 'New Order' },
+    receipt_print: { ar: 'طباعة الإيصال', en: 'Print Receipt' },
+    receipt_done: { ar: 'تم', en: 'Done' },
+    order_no_label: { ar: 'رقم الطلب', en: 'Order #' },
+    table_label: { ar: 'الطاولة', en: 'Table' },
+    cashier_label: { ar: 'أمين الصندوق', en: 'Cashier' },
+    date_label: { ar: 'التاريخ', en: 'Date' },
+
+    // ── Admin: Employees ──
+    no_employees: { ar: 'لا يوجد موظفين', en: 'No employees' },
+    completed_orders: { ar: 'الطلبات المنجزة', en: 'Completed Orders' },
+    total_sales: { ar: 'إجمالي المبيعات', en: 'Total Sales' },
+    deactivate: { ar: 'تعطيل', en: 'Deactivate' },
+    activate: { ar: 'تفعيل', en: 'Activate' },
+    role: { ar: 'الدور', en: 'Role' },
+    is_active: { ar: 'نشط', en: 'Active' },
+    is_inactive: { ar: 'غير نشط', en: 'Inactive' },
+    created_at: { ar: 'تاريخ الإنشاء', en: 'Created' },
+
+    // ── Admin: Order Modal ──
+    order_details: { ar: 'تفاصيل الطلب', en: 'Order Details' },
+    item_name: { ar: 'صنف', en: 'Item' },
+    subtotal_label: { ar: 'المجموع الفرعي', en: 'Subtotal' },
+    tax_label_admin: { ar: 'الضريبة', en: 'Tax' },
+    total_label: { ar: 'الإجمالي', en: 'Total' },
+    payment_method_label: { ar: 'طريقة الدفع', en: 'Payment Method' },
+    payment_card: { ar: 'بطاقة', en: 'Card' },
+    payment_cash_label: { ar: 'نقدي', en: 'Cash' },
+    close_btn: { ar: 'إغلاق', en: 'Close' },
+
+    // ── Admin: Dashboard ──
+    main_menu: { ar: 'القائمة الرئيسية', en: 'Main Menu' },
+    sales_last_7: { ar: 'المبيعات خلال آخر 7 أيام', en: 'Sales - Last 7 Days' },
+    orders_by_hour: { ar: 'الطلبات حسب الساعة', en: 'Orders by Hour' },
+    top_selling: { ar: 'أكثر المنتجات مبيعاً', en: 'Top Selling Products' },
+    payment_methods: { ar: 'طرق الدفع', en: 'Payment Methods' },
+    recent_orders: { ar: 'آخر الطلبات', en: 'Recent Orders' },
+    no_orders_yet: { ar: 'لا توجد طلبات بعد', en: 'No orders yet' },
+    orders_appear: { ar: 'ستظهر الطلبات هنا بعد إتمامها', en: 'Orders will appear here once completed' },
+    no_data: { ar: 'لا توجد بيانات', en: 'No data' },
+    all_users: { ar: 'جميع المستخدمين', en: 'All Users' }
   };
 
   function setDirection(lang) {

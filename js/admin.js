@@ -61,7 +61,7 @@
         totalSales += o.total || 0;
         if (o.items) {
           o.items.forEach(function (item) {
-            var name = item.name || 'منتج';
+            var name = item.name || Nawa.I18n.t('product');
             productCount[name] = (productCount[name] || 0) + (item.qty || 1);
           });
         }
@@ -110,19 +110,15 @@
     },
 
     getArabicAction(action) {
+      var t = Nawa.I18n.t;
       var map = {
-        'add': 'إضافة',
-        'create': 'إضافة',
-        'edit': 'تعديل',
-        'update': 'تعديل',
-        'delete': 'حذف',
-        'payment': 'دفع',
-        'pay': 'دفع',
-        'auth': 'مصادقة',
-        'login': 'تسجيل دخول',
-        'logout': 'تسجيل خروج'
+        'add': t('action_add'), 'create': t('action_add'),
+        'edit': t('action_edit'), 'update': t('action_edit'),
+        'delete': t('action_delete'),
+        'payment': t('action_payment'), 'pay': t('action_payment'),
+        'auth': t('action_auth'), 'login': t('action_login'), 'logout': t('action_logout')
       };
-      return map[action] || action || 'إجراء';
+      return map[action] || action || t('action_default');
     },
 
     getActionClass(action) {
@@ -142,16 +138,12 @@
     },
 
     getArabicStore(store) {
+      var t = Nawa.I18n.t;
       var map = {
-        'products': 'المنتجات',
-        'orders': 'الطلبات',
-        'tables': 'الطاولات',
-        'employees': 'الموظفين',
-        'categories': 'الفئات',
-        'settings': 'الإعدادات',
-        'customers': 'العملاء',
-        'audit_log': 'سجل التعديلات',
-        'floors': 'الطوابق'
+        'products': t('store_products'), 'orders': t('store_orders'),
+        'tables': t('store_tables'), 'employees': t('store_employees'),
+        'categories': t('store_categories'), 'settings': t('store_settings'),
+        'customers': t('store_customers'), 'audit_log': t('store_audit_log'), 'floors': t('store_floors')
       };
       return map[store] || store;
     },
@@ -500,6 +492,7 @@
 
     renderAuditLog() {
       var self = this;
+      var t = Nawa.I18n.t;
       var filtered = this.getFilteredAudit();
       var totalPages = Math.ceil(filtered.length / this.state.auditPerPage) || 1;
       var page = Math.min(this.state.auditPage, totalPages);
@@ -511,12 +504,12 @@
       html += '<div class="admin-audit-toolbar">';
 
       html += '<div class="admin-date-range">';
-      html += '<input type="date" class="form-input" id="audit-date-from" value="' + (this.state.auditFilters.dateFrom || '') + '" placeholder="من تاريخ">';
-      html += '<span class="admin-date-range-separator"> إلى </span>';
+      html += '<input type="date" class="form-input" id="audit-date-from" value="' + (this.state.auditFilters.dateFrom || '') + '" placeholder="' + t('from') + '...">';
+      html += '<span class="admin-date-range-separator"> ' + t('to') + ' </span>';
       html += '<input type="date" class="form-input" id="audit-date-to" value="' + (this.state.auditFilters.dateTo || '') + '">';
       html += '</div>';
 
-      var userOptions = '<option value="">جميع المستخدمين</option>';
+      var userOptions = '<option value="">' + (Nawa.I18n.getLang() === 'ar' ? 'جميع المستخدمين' : 'All Users') + '</option>';
       var seenUsers = {};
       this.state.auditEntries.forEach(function (e) {
         if (e.userId && !seenUsers[e.userId]) {
@@ -527,22 +520,22 @@
       html += '<select class="form-select" id="audit-user-filter">' + userOptions + '</select>';
 
       html += '<select class="form-select" id="audit-action-filter">';
-      html += '<option value="">جميع الإجراءات</option>';
-      html += '<option value="add">إضافة</option>';
-      html += '<option value="edit">تعديل</option>';
-      html += '<option value="delete">حذف</option>';
-      html += '<option value="payment">دفع</option>';
-      html += '<option value="auth">مصادقة</option>';
+      html += '<option value="">' + t('actions') + '</option>';
+      html += '<option value="add">' + t('action_add') + '</option>';
+      html += '<option value="edit">' + t('action_edit') + '</option>';
+      html += '<option value="delete">' + t('action_delete') + '</option>';
+      html += '<option value="payment">' + t('action_payment') + '</option>';
+      html += '<option value="auth">' + t('action_auth') + '</option>';
       html += '</select>';
 
       html += '<div class="admin-audit-search">';
-      html += '<input type="text" id="audit-search" placeholder="بحث في السجل..." value="' + (this.state.auditFilters.search || '') + '">';
+      html += '<input type="text" id="audit-search" placeholder="' + t('search') + '..." value="' + (this.state.auditFilters.search || '') + '">';
       html += '<svg class="admin-audit-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>';
       html += '</div>';
 
       html += '<div class="admin-audit-actions">';
-      html += '<button class="btn btn-sm btn-outline" id="audit-verify-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> التحقق من النزاهة</button>';
-      html += '<button class="btn btn-sm btn-primary" id="audit-export-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> تصدير CSV</button>';
+      html += '<button class="btn btn-sm btn-outline" id="audit-verify-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> ' + t('verify_audit') + '</button>';
+      html += '<button class="btn btn-sm btn-primary" id="audit-export-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> ' + t('export') + ' CSV</button>';
       html += '</div>';
       html += '</div>';
 
@@ -550,10 +543,10 @@
 
       html += '<div class="admin-audit-table-wrapper">';
       if (pageItems.length === 0) {
-        html += '<div class="admin-empty"><div class="admin-empty-title">لا توجد سجلات</div><div class="admin-empty-desc">لم يتم تسجيل أي تعديلات بعد</div></div>';
+        html += '<div class="admin-empty"><div class="admin-empty-title">' + t('no_records') + '</div><div class="admin-empty-desc">' + t('no_records_desc') + '</div></div>';
       } else {
         html += '<table class="admin-audit-table"><thead><tr>';
-        html += '<th></th><th>التاريخ والوقت</th><th>المستخدم</th><th>الإجراء</th><th>السجل</th><th>التفاصيل</th><th>البصمة</th>';
+        html += '<th></th><th>' + t('date_time') + '</th><th>' + t('user') + '</th><th>' + t('action') + '</th><th>' + t('store') + '</th><th>' + t('details') + '</th><th>' + t('fingerprint') + '</th>';
         html += '</tr></thead><tbody>';
 
         pageItems.forEach(function (entry, idx) {
@@ -562,7 +555,7 @@
           var storeLabel = self.getArabicStore(entry.store);
           var recordDisplay = entry.recordId ? entry.recordId.slice(-8).toUpperCase() : '--';
           var hashDisplay = entry.hash ? entry.hash.slice(0, 12) + '...' : '--';
-          var detailText = entry.details ? JSON.stringify(entry.details, null, 2) : 'لا توجد تفاصيل';
+          var detailText = entry.details ? JSON.stringify(entry.details, null, 2) : t('no_details');
 
           html += '<tr>';
           html += '<td><button class="admin-audit-expand-btn" data-idx="' + idx + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button></td>';
@@ -570,14 +563,14 @@
           html += '<td>' + (entry.userName || entry.userId || '--') + '</td>';
           html += '<td><span class="admin-action-badge ' + actionClass + '">' + actionLabel + '</span></td>';
           html += '<td>' + storeLabel + ' - ' + recordDisplay + '</td>';
-          html += '<td>' + (entry.details ? (typeof entry.details === 'string' ? entry.details.slice(0, 40) : 'تفاصيل') : '--') + '</td>';
+          html += '<td>' + (entry.details ? (typeof entry.details === 'string' ? entry.details.slice(0, 40) : Nawa.I18n.t('details')) : '--') + '</td>';
           html += '<td><span class="admin-audit-hash" title="' + (entry.hash || '') + '">' + hashDisplay + '</td>';
           html += '</tr>';
 
           html += '<tr class="admin-audit-detail-row" id="audit-detail-' + idx + '">';
           html += '<td colspan="7">';
           html += '<div class="admin-audit-detail-content">';
-          html += '<div class="admin-audit-detail-label">تفاصيل السجل:</div>';
+          html += '<div class="admin-audit-detail-label">' + t('record_details') + '</div>';
           html += '<pre>' + detailText + '</pre>';
           html += '</div></td></tr>';
         });
@@ -586,7 +579,7 @@
       }
 
       html += '<div class="admin-audit-pagination">';
-      html += '<span class="admin-audit-pagination-info">عرض ' + (pageItems.length > 0 ? start + 1 : 0) + '-' + Math.min(start + this.state.auditPerPage, filtered.length) + ' من ' + filtered.length + '</span>';
+      html += '<span class="admin-audit-pagination-info">' + t('showing_records') + ' ' + (pageItems.length > 0 ? start + 1 : 0) + '-' + Math.min(start + this.state.auditPerPage, filtered.length) + ' ' + t('records_of') + ' ' + filtered.length + '</span>';
       html += '<div class="admin-audit-pagination-btns">';
       html += '<button class="admin-audit-page-btn" id="audit-page-prev"' + (page <= 1 ? ' disabled' : '') + '>&#8594;</button>';
 
@@ -650,7 +643,7 @@
       var html = '<div class="admin-employees-grid">';
 
       if (employees.length === 0) {
-        html += '<div class="admin-empty"><div class="admin-empty-title">لا يوجد موظفين</div></div>';
+        html += '<div class="admin-empty"><div class="admin-empty-title">' + Nawa.I18n.t('no_employees') + '</div></div>';
       }
 
       employees.forEach(function (emp) {
@@ -659,9 +652,9 @@
         var empSales = 0;
         paidOrders.forEach(function (o) { empSales += o.total || 0; });
         var statusClass = emp.isActive ? 'active' : 'inactive';
-        var statusLabel = emp.isActive ? 'نشط' : 'معطل';
-        var initial = (emp.name || 'م').charAt(0);
-        var roleLabel = emp.role === 'admin' ? 'مدير' : 'كاشير';
+        var statusLabel = emp.isActive ? Nawa.I18n.t('is_active') : Nawa.I18n.t('deactivate');
+        var initial = (emp.name || Nawa.I18n.t('employee')).charAt(0);
+        var roleLabel = emp.role === 'admin' ? Nawa.I18n.t('role_admin') : Nawa.I18n.t('role_cashier');
 
         html += '<div class="admin-employee-card">';
         html += '<div class="admin-employee-header">';
@@ -674,12 +667,12 @@
         html += '</div>';
 
         html += '<div class="admin-employee-stats">';
-        html += '<div class="admin-employee-stat"><div class="admin-employee-stat-value">' + self.formatNumber(paidOrders.length) + '</div><div class="admin-employee-stat-label">الطلبات المنجزة</div></div>';
-        html += '<div class="admin-employee-stat"><div class="admin-employee-stat-value">' + self.formatCurrency(empSales) + '</div><div class="admin-employee-stat-label">إجمالي المبيعات</div></div>';
+        html += '<div class="admin-employee-stat"><div class="admin-employee-stat-value">' + self.formatNumber(paidOrders.length) + '</div><div class="admin-employee-stat-label">' + Nawa.I18n.t('completed_orders') + '</div></div>';
+        html += '<div class="admin-employee-stat"><div class="admin-employee-stat-value">' + self.formatCurrency(empSales) + '</div><div class="admin-employee-stat-label">' + Nawa.I18n.t('total_sales') + '</div></div>';
         html += '</div>';
 
         html += '<div class="admin-employee-actions">';
-        html += '<button class="btn btn-sm ' + (emp.isActive ? 'btn-danger' : 'btn-success') + '" data-toggle-emp="' + emp.id + '">' + (emp.isActive ? 'تعطيل' : 'تفعيل') + '</button>';
+        html += '<button class="btn btn-sm ' + (emp.isActive ? 'btn-danger' : 'btn-success') + '" data-toggle-emp="' + emp.id + '">' + (emp.isActive ? Nawa.I18n.t('deactivate') : Nawa.I18n.t('activate')) + '</button>';
         html += '</div>';
         html += '</div>';
       });
@@ -690,46 +683,47 @@
 
     renderSettings() {
       var st = this.state.settings;
+      var t = Nawa.I18n.t;
       var html = '<div class="admin-settings">';
 
       html += '<div class="admin-settings-card">';
-      html += '<div class="admin-settings-card-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> الإعدادات العامة</div>';
+      html += '<div class="admin-settings-card-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg> ' + t('settings') + '</div>';
       html += '<div class="admin-settings-card-body">';
 
       html += '<div class="admin-settings-row">';
-      html += '<div class="admin-settings-label"><span class="admin-settings-label-text">نسبة الضريبة (%)</span><span class="admin-settings-label-desc">القيمة الافتراضية 15%</span></div>';
+      html += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t('tax_rate') + '</span><span class="admin-settings-label-desc">' + t('tax_rate_desc') + '</span></div>';
       html += '<div class="form-group" style="max-width:120px"><input type="number" class="form-input" id="setting-tax" value="' + (st.taxRate || '15') + '" min="0" max="100"></div>';
       html += '</div>';
 
       html += '<div class="admin-settings-row">';
-      html += '<div class="admin-settings-label"><span class="admin-settings-label-text">نص رأس الإيصال</span><span class="admin-settings-label-desc">يظهر في أعلى الإيصال المطبوع</span></div>';
+      html += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t('receipt_header') + '</span><span class="admin-settings-label-desc">' + t('receipt_header_desc') + '</span></div>';
       html += '<div class="form-group" style="flex:2"><input type="text" class="form-input" id="setting-receipt-header" value="' + (st.receiptHeader || CFG.COMPANY_NAME) + '"></div>';
       html += '</div>';
 
       html += '<div class="admin-settings-row">';
-      html += '<div class="admin-settings-label"><span class="admin-settings-label-text">فترة المزامنة (ثانية)</span><span class="admin-settings-label-desc">كمية تكرار المزامنة مع السيرفر</span></div>';
+      html += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t('sync_interval') + '</span><span class="admin-settings-label-desc">' + t('sync_interval_desc') + '</span></div>';
       html += '<div class="form-group" style="max-width:120px"><input type="number" class="form-input" id="setting-sync-interval" value="' + (st.syncInterval || Math.round(CFG.SYNC_INTERVAL / 1000)) + '" min="30"></div>';
       html += '</div>';
 
       html += '</div></div>';
 
       html += '<div class="admin-settings-card">';
-      html += '<div class="admin-settings-card-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg> الصوت والطباعة</div>';
+      html += '<div class="admin-settings-card-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg> ' + t('sound_print') + '</div>';
       html += '<div class="admin-settings-card-body">';
 
       html += '<div class="admin-settings-row">';
-      html += '<div class="admin-settings-label"><span class="admin-settings-label-text">المؤثرات الصوتية</span><span class="admin-settings-label-desc">تشغيل أصوات عند إجراء المعاملات</span></div>';
+      html += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t('sound_effects') + '</span><span class="admin-settings-label-desc">' + t('sound_effects_desc') + '</span></div>';
       html += '<label class="admin-toggle"><input type="checkbox" id="setting-sound"' + (st.soundEnabled !== false ? ' checked' : '') + '><span class="admin-toggle-slider"></span></label>';
       html += '</div>';
 
       html += '<div class="admin-settings-row">';
-      html += '<div class="admin-settings-label"><span class="admin-settings-label-text">الطباعة التلقائية</span><span class="admin-settings-label-desc">طباعة الإيصال تلقائياً عند إتمام الطلب</span></div>';
+      html += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t('auto_print') + '</span><span class="admin-settings-label-desc">' + t('auto_print_desc') + '</span></div>';
       html += '<label class="admin-toggle"><input type="checkbox" id="setting-auto-print"' + (st.autoPrint ? ' checked' : '') + '><span class="admin-toggle-slider"></span></label>';
       html += '</div>';
 
       html += '</div></div>';
 
-      html += '<button class="btn btn-primary btn-lg admin-settings-save" id="settings-save-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> حفظ الإعدادات</button>';
+      html += '<button class="btn btn-primary btn-lg admin-settings-save" id="settings-save-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> ' + t('save_settings') + '</button>';
 
       html += '</div>';
       return html;
@@ -757,19 +751,21 @@
       }
 
       if (resultEl) {
+        var t = Nawa.I18n.t;
         if (valid) {
-          resultEl.innerHTML = '<div class="admin-integrity-badge valid" style="margin:8px 0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> سجل التعديلات سليم</div>';
-          this.showNotification('سجل التعديلات سليم ✓', 'success');
+          resultEl.innerHTML = '<div class="admin-integrity-badge valid" style="margin:8px 0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> ' + t('audit_integrity_ok') + '</div>';
+          this.showNotification(t('audit_integrity_ok') + ' ✓', 'success');
         } else {
-          resultEl.innerHTML = '<div class="admin-integrity-badge invalid" style="margin:8px 0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> تنبيه: تم العثور على تعديلات غير مصرح بها</div>';
-          this.showNotification('تم العثور على تعديلات مشبوهة في السجل!', 'error');
+          resultEl.innerHTML = '<div class="admin-integrity-badge invalid" style="margin:8px 0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> ' + t('audit_tampered') + '</div>';
+          this.showNotification(t('audit_tampered_warn'), 'error');
         }
       }
     },
 
     async exportAuditCSV() {
       var entries = this.getFilteredAudit();
-      var rows = ['التاريخ,المستخدم,الإجراء,السجل,البصمة,التفاصيل'];
+      var t = Nawa.I18n.t;
+      var rows = [t('csv_header')];
 
       var self = this;
       entries.forEach(function (e) {
@@ -794,7 +790,7 @@
       a.click();
 
       URL.revokeObjectURL(url);
-      this.showNotification('تم تصدير السجل بنجاح', 'success');
+      this.showNotification(Nawa.I18n.t('success_export'), 'success');
     },
 
     showOrderDetails(orderId) {
@@ -816,24 +812,25 @@
         }
       }
 
+      var t = Nawa.I18n.t;
       var html = '<div class="modal-overlay" id="order-modal-overlay">';
       html += '<div class="modal">';
-      html += '<div class="modal-header"><h3>تفاصيل الطلب #' + orderId.slice(-6).toUpperCase() + '</h3>';
+      html += '<div class="modal-header"><h3>' + t('order_details') + ' #' + orderId.slice(-6).toUpperCase() + '</h3>';
       html += '<button class="btn btn-ghost btn-icon" id="order-modal-close"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>';
       html += '</div>';
       html += '<div class="modal-body">';
 
       html += '<div style="display:flex;justify-content:space-between;margin-bottom:12px">';
-      html += '<div><strong>الوقت:</strong> ' + self.formatDate(order.createdAt) + ' ' + self.formatTime(order.createdAt) + '</div>';
-      html += '<div><strong>الطاولة:</strong> ' + (order.tableNumber || order.tableId || '--') + '</div>';
+      html += '<div><strong>' + t('time') + ':</strong> ' + self.formatDate(order.createdAt) + ' ' + self.formatTime(order.createdAt) + '</div>';
+      html += '<div><strong>' + t('table') + ':</strong> ' + (order.tableNumber || order.tableId || '--') + '</div>';
       html += '</div>';
-      html += '<div style="margin-bottom:16px"><strong>الموظف:</strong> ' + empName + '</div>';
+      html += '<div style="margin-bottom:16px"><strong>' + t('employee') + ':</strong> ' + empName + '</div>';
 
       if (order.items && order.items.length > 0) {
         html += '<div class="admin-order-modal-items">';
         order.items.forEach(function (item) {
           html += '<div class="admin-order-modal-item">';
-          html += '<span class="admin-order-modal-item-name">' + (item.name || 'صنف') + '</span>';
+          html += '<span class="admin-order-modal-item-name">' + (item.name || t('item_name')) + '</span>';
           html += '<span class="admin-order-modal-item-qty">× ' + (item.qty || 1) + '</span>';
           html += '<span class="admin-order-modal-item-price">' + self.formatCurrency((item.price || 0) * (item.qty || 1)) + '</span>';
           html += '</div>';
@@ -842,16 +839,16 @@
       }
 
       html += '<div class="admin-order-modal-summary">';
-      html += '<div class="admin-order-modal-row"><span>المجموع الفرعي</span><span>' + self.formatCurrency(order.subtotal || order.total || 0) + '</span></div>';
+      html += '<div class="admin-order-modal-row"><span>' + t('subtotal_label') + '</span><span>' + self.formatCurrency(order.subtotal || order.total || 0) + '</span></div>';
       if (order.tax) {
-        html += '<div class="admin-order-modal-row"><span>الضريبة</span><span>' + self.formatCurrency(order.tax) + '</span></div>';
+        html += '<div class="admin-order-modal-row"><span>' + t('tax_label_admin') + '</span><span>' + self.formatCurrency(order.tax) + '</span></div>';
       }
-      html += '<div class="admin-order-modal-row total"><span>الإجمالي</span><span>' + self.formatCurrency(order.total || 0) + '</span></div>';
-      html += '<div class="admin-order-modal-row"><span>طريقة الدفع</span><span>' + (order.paymentMethod === 'card' ? 'بطاقة' : 'نقدي') + '</span></div>';
+      html += '<div class="admin-order-modal-row total"><span>' + t('total_label') + '</span><span>' + self.formatCurrency(order.total || 0) + '</span></div>';
+      html += '<div class="admin-order-modal-row"><span>' + t('payment_method_label') + '</span><span>' + (order.paymentMethod === 'card' ? t('payment_card') : t('payment_cash_label')) + '</span></div>';
       html += '</div>';
 
       html += '</div>';
-      html += '<div class="modal-footer"><button class="btn btn-ghost" id="order-modal-close-btn">إغلاق</button></div>';
+      html += '<div class="modal-footer"><button class="btn btn-ghost" id="order-modal-close-btn">' + t('close_btn') + '</button></div>';
       html += '</div></div>';
 
       document.body.insertAdjacentHTML('beforeend', html);
@@ -889,10 +886,10 @@
           await window.Nawa.Audit.log('edit', 'employees', employeeId, { field: 'isActive', oldValue: !newStatus, newValue: newStatus });
         }
 
-        this.showNotification(newStatus ? 'تم تفعيل ' + emp.name : 'تم تعطيل ' + emp.name, 'success');
+        this.showNotification(newStatus ? Nawa.I18n.t('activate') + ' ' + emp.name : Nawa.I18n.t('deactivate') + ' ' + emp.name, 'success');
         this.render();
       } catch (e) {
-        this.showNotification('حدث خطأ أثناء التحديث', 'error');
+        this.showNotification(Nawa.I18n.t('error_generic'), 'error');
       }
     },
 
@@ -930,9 +927,9 @@
       try {
         await Promise.all(ops);
         settingsToSave.forEach(function (s) { self.state.settings[s.key] = s.value; });
-        this.showNotification('تم حفظ الإعدادات بنجاح', 'success');
+        this.showNotification(Nawa.I18n.t('success_save'), 'success');
       } catch (e) {
-        this.showNotification('حدث خطأ أثناء الحفظ', 'error');
+        this.showNotification(Nawa.I18n.t('error_generic'), 'error');
       }
     },
 
