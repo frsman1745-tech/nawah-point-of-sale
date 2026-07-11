@@ -216,6 +216,9 @@ const App = {
       case 'login':
         this.showLogin();
         break;
+      case 'register':
+        this.showRegister();
+        break;
       case 'pos':
         this.showPOS();
         break;
@@ -238,66 +241,145 @@ const App = {
     const app = document.getElementById('app');
     if (!app) return;
 
+    // Check if already logged in
+    const user = Nawa.Auth ? Nawa.Auth.getCurrentUser() : null;
+    if (user) {
+      switch (user.role) {
+        case 'super_admin': window.location.hash = '#/super-admin'; return;
+        case 'admin': window.location.hash = '#/admin'; return;
+        case 'cashier': window.location.hash = '#/pos'; return;
+      }
+    }
+
     app.innerHTML = this.renderLoginPage();
 
-    const form = document.getElementById('loginForm');
+    // Tab switching
+    document.querySelectorAll('.login-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.login-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const mode = tab.dataset.mode;
+        document.getElementById('cashierFields').classList.toggle('hidden', mode !== 'cashier');
+        document.getElementById('adminFields').classList.toggle('hidden', mode !== 'admin');
+        document.getElementById('superFields').classList.toggle('hidden', mode !== 'super');
+        document.getElementById('loginError').classList.add('hidden');
+      });
+    });
+
+    // Cashier form
+    const cashierForm = document.getElementById('cashierForm');
+    if (cashierForm) {
+      cashierForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const password = document.getElementById('cashierPassword').value;
+        const errorEl = document.getElementById('loginError');
+        if (!password) {
+          if (errorEl) { errorEl.textContent = Nawa.I18n.t('login_error_fields'); errorEl.classList.remove('hidden'); }
+          return;
+        }
+        try {
+          const user = await Nawa.Auth.cashierLogin(password);
+          if (user && user.role) { window.location.hash = '#/pos'; }
+        } catch (err) {
+          if (errorEl) { errorEl.textContent = err.message || Nawa.I18n.t('login_error'); errorEl.classList.remove('hidden'); }
+        }
+      });
+    }
+
+    // Admin form
+    const adminForm = document.getElementById('adminForm');
+    if (adminForm) {
+      adminForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('adminEmail').value.trim();
+        const password = document.getElementById('adminPassword').value;
+        const errorEl = document.getElementById('loginError');
+        if (!email || !password) {
+          if (errorEl) { errorEl.textContent = Nawa.I18n.t('login_error_fields'); errorEl.classList.remove('hidden'); }
+          return;
+        }
+        try {
+          const user = await Nawa.Auth.adminLogin(email, password);
+          if (user && user.role) { window.location.hash = '#/admin'; }
+        } catch (err) {
+          if (errorEl) { errorEl.textContent = err.message || Nawa.I18n.t('login_error'); errorEl.classList.remove('hidden'); }
+        }
+      });
+    }
+
+    // Super admin form
+    const superForm = document.getElementById('superForm');
+    if (superForm) {
+      superForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = document.getElementById('superUsername').value.trim();
+        const password = document.getElementById('superPassword').value;
+        const errorEl = document.getElementById('loginError');
+        if (!username || !password) {
+          if (errorEl) { errorEl.textContent = Nawa.I18n.t('login_error_fields'); errorEl.classList.remove('hidden'); }
+          return;
+        }
+        try {
+          const user = await Nawa.Auth.superLogin(username, password);
+          if (user && user.role) { window.location.hash = '#/super-admin'; }
+        } catch (err) {
+          if (errorEl) { errorEl.textContent = err.message || Nawa.I18n.t('login_error'); errorEl.classList.remove('hidden'); }
+        }
+      });
+    }
+
+    // Language toggle
+    const langBtn = document.getElementById('langToggle');
+    if (langBtn) {
+      langBtn.addEventListener('click', () => {
+        if (Nawa.I18n && Nawa.I18n.toggle) { Nawa.I18n.toggle(); this.showLogin(); }
+      });
+    }
+  },
+
+  async showRegister() {
+    this.currentPage = 'register';
+    const app = document.getElementById('app');
+    if (!app) return;
+    app.innerHTML = this.renderRegisterPage();
+
+    const form = document.getElementById('registerForm');
     if (form) {
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const username = document.getElementById('username').value.trim();
-        const password = document.getElementById('password').value;
-        const errorEl = document.getElementById('loginError');
+        const errorEl = document.getElementById('registerError');
+        const successEl = document.getElementById('registerSuccess');
+        if (errorEl) errorEl.classList.add('hidden');
+        if (successEl) successEl.classList.add('hidden');
 
-        if (!username || !password) {
-          if (errorEl) {
-            const msg = (Nawa.I18n.getLang() === 'ar') ? 'يرجى إدخال اسم المستخدم وكلمة المرور' : 'Please enter username and password';
-            errorEl.textContent = msg;
-            errorEl.classList.remove('hidden');
-          }
+        const data = {
+          restaurantName: document.getElementById('regRestaurantName').value.trim(),
+          ownerName: document.getElementById('regOwnerName').value.trim(),
+          email: document.getElementById('regEmail').value.trim(),
+          phone: document.getElementById('regPhone').value.trim(),
+          password: document.getElementById('regPassword').value,
+        };
+
+        if (!data.restaurantName || !data.ownerName || !data.email || !data.password) {
+          if (errorEl) { errorEl.textContent = Nawa.I18n.getLang() === 'ar' ? 'يرجى ملء جميع الحقول المطلوبة' : 'Please fill all required fields'; errorEl.classList.remove('hidden'); }
+          return;
+        }
+        if (data.password.length < 6) {
+          if (errorEl) { errorEl.textContent = Nawa.I18n.getLang() === 'ar' ? 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' : 'Password must be at least 6 characters'; errorEl.classList.remove('hidden'); }
           return;
         }
 
         try {
-          let user = null;
-
-          if (Nawa.Auth && Nawa.Auth.login) {
-            user = await Nawa.Auth.login(username, password);
-          } else {
-            user = await this._fallbackLogin(username, password);
-          }
-
-          if (user && user.role) {
-            if (Nawa.I18n && Nawa.I18n.t) {
-              // Language already initialized
+          const result = await Nawa.Auth.register(data);
+          if (result.ok) {
+            if (successEl) {
+              successEl.textContent = Nawa.I18n.getLang() === 'ar' ? 'تم التسجيل بنجاح! في انتظار الموافقة من المدير العام.' : 'Registration successful! Waiting for super admin approval.';
+              successEl.classList.remove('hidden');
             }
-
-            switch (user.role) {
-              case 'super_admin':
-                window.location.hash = '#/super-admin';
-                break;
-              case 'admin':
-                window.location.hash = '#/admin';
-                break;
-              case 'cashier':
-                window.location.hash = '#/pos';
-                break;
-              default:
-                window.location.hash = '#/login';
-            }
-          } else {
-          if (errorEl) {
-            const msg = (Nawa.I18n.getLang() === 'ar') ? 'اسم المستخدم أو كلمة المرور غير صحيحة' : 'Invalid username or password';
-            errorEl.textContent = msg;
-            errorEl.classList.remove('hidden');
-          }
+            form.reset();
           }
         } catch (err) {
-          console.error('Login error:', err);
-          if (errorEl) {
-            const msg = (Nawa.I18n.getLang() === 'ar') ? 'حدث خطأ أثناء تسجيل الدخول' : 'An error occurred during login';
-            errorEl.textContent = msg;
-            errorEl.classList.remove('hidden');
-          }
+          if (errorEl) { errorEl.textContent = err.message || 'Registration failed'; errorEl.classList.remove('hidden'); }
         }
       });
     }
@@ -305,17 +387,54 @@ const App = {
     const langBtn = document.getElementById('langToggle');
     if (langBtn) {
       langBtn.addEventListener('click', () => {
-        if (Nawa.I18n && Nawa.I18n.toggle) {
-          Nawa.I18n.toggle();
-          // Re-render the login page with new language
-          this.showLogin();
-        }
+        if (Nawa.I18n && Nawa.I18n.toggle) { Nawa.I18n.toggle(); this.showRegister(); }
       });
     }
+  },
 
-    // Set focus on username input
-    const usernameInput = document.getElementById('username');
-    if (usernameInput) setTimeout(() => usernameInput.focus(), 100);
+  renderRegisterPage() {
+    const isAr = (Nawa.I18n && Nawa.I18n.getLang) ? Nawa.I18n.getLang() === 'ar' : true;
+    const langLabel = isAr ? 'English' : 'العربية';
+
+    return `
+    <div class="login-page">
+      <button id="langToggle" class="btn btn-ghost login-lang-btn-top">${langLabel}</button>
+      <div class="login-card" style="max-width:480px;">
+        <div class="login-logo">${this.getLogo(64)}</div>
+        <h1 class="login-company" style="font-size:24px;">${isAr ? 'تسجيل مطعم جديد' : 'Register Restaurant'}</h1>
+        <p class="login-tagline">${isAr ? 'املأ البيانات لتقديم طلب التسجيل' : 'Fill in the details to submit a registration request'}</p>
+
+        <div id="registerError" class="hidden" style="color:#ef4444;text-align:center;margin-bottom:12px;font-size:14px;"></div>
+        <div id="registerSuccess" class="hidden" style="color:#22c55e;text-align:center;margin-bottom:12px;font-size:14px;font-weight:600;"></div>
+
+        <form id="registerForm" class="login-form">
+          <div class="form-group">
+            <label>${isAr ? 'اسم المطعم *' : 'Restaurant Name *'}</label>
+            <input type="text" id="regRestaurantName" class="form-input" placeholder="${isAr ? 'اسم المطعم' : 'Restaurant name'}">
+          </div>
+          <div class="form-group">
+            <label>${isAr ? 'اسم صاحب المطعم *' : 'Owner Name *'}</label>
+            <input type="text" id="regOwnerName" class="form-input" placeholder="${isAr ? 'الاسم الكامل' : 'Full name'}">
+          </div>
+          <div class="form-group">
+            <label>${isAr ? 'البريد الإلكتروني *' : 'Email *'}</label>
+            <input type="email" id="regEmail" class="form-input" placeholder="email@example.com" dir="ltr">
+          </div>
+          <div class="form-group">
+            <label>${isAr ? 'رقم الجوال' : 'Phone'}</label>
+            <input type="tel" id="regPhone" class="form-input" placeholder="${isAr ? '05XXXXXXXX' : '05XXXXXXXX'}" dir="ltr">
+          </div>
+          <div class="form-group">
+            <label>${isAr ? 'كلمة المرور *' : 'Password *'}</label>
+            <input type="password" id="regPassword" class="form-input" placeholder="${isAr ? '6 أحرف على الأقل' : 'Min 6 characters'}" autocomplete="new-password" dir="ltr">
+          </div>
+          <button type="submit" class="btn btn-primary btn-xl w-full">${isAr ? 'تقديم طلب التسجيل' : 'Submit Registration'}</button>
+          <p style="text-align:center;margin-top:16px;font-size:13px;">
+            <a href="#/login" style="color:#C9A84C;text-decoration:none;font-weight:600;">${isAr ? 'العودة لتسجيل الدخول' : 'Back to Login'}</a>
+          </p>
+        </form>
+      </div>
+    </div>`;
   },
 
   _fallbackLogin(username, password) {
@@ -423,34 +542,69 @@ const App = {
   renderLoginPage() {
     const t = (Nawa.I18n && Nawa.I18n.t) ? Nawa.I18n.t.bind(Nawa.I18n) : (k) => k;
     const currentLang = (Nawa.I18n && Nawa.I18n.getLang) ? Nawa.I18n.getLang() : 'ar';
-    const langLabel = currentLang === 'ar' ? 'English' : 'العربية';
-    const langTitle = currentLang === 'ar' ? 'Switch to English' : 'التبديل إلى العربية';
-    const tagline = currentLang === 'ar' ? 'نظام نقطة البيع للمطاعم' : 'Restaurant Point of Sale System';
-    const placeholderUser = currentLang === 'ar' ? 'أدخل اسم المستخدم' : 'Enter username';
-    const placeholderPass = currentLang === 'ar' ? 'أدخل كلمة المرور' : 'Enter password';
+    const isAr = currentLang === 'ar';
+    const langLabel = isAr ? 'English' : 'العربية';
+    const langTitle = isAr ? 'Switch to English' : 'التبديل إلى العربية';
+    const tagline = isAr ? 'نظام نقطة البيع للمطاعم' : 'Restaurant Point of Sale System';
 
     return `
     <div class="login-page">
-      <button id="langToggle" class="btn btn-ghost login-lang-btn-top" title="${langTitle}">
-        ${langLabel}
-      </button>
+      <button id="langToggle" class="btn btn-ghost login-lang-btn-top" title="${langTitle}">${langLabel}</button>
       <div class="login-card">
-        <div class="login-logo">
-          ${this.getLogo(80)}
-        </div>
+        <div class="login-logo">${this.getLogo(80)}</div>
         <h1 class="login-company">${t('app_name').replace(' POS', '')}</h1>
         <p class="login-tagline">${tagline}</p>
-        <form id="loginForm" class="login-form">
-          <div class="form-group">
-            <label>${t('username')}</label>
-            <input type="text" id="username" class="form-input" placeholder="${placeholderUser}" autocomplete="username" dir="ltr">
+
+        <div class="login-tabs">
+          <button class="login-tab active" data-mode="cashier">${isAr ? 'كاشير' : 'Cashier'}</button>
+          <button class="login-tab" data-mode="admin">${isAr ? 'مدير المطعم' : 'Restaurant Admin'}</button>
+          <button class="login-tab" data-mode="super">${isAr ? 'مدير عام' : 'Super Admin'}</button>
+        </div>
+
+        <div id="loginError" class="hidden" style="color:var(--danger,#ef4444);text-align:center;margin-bottom:12px;font-size:14px;"></div>
+
+        <!-- Cashier: password only -->
+        <form id="cashierForm" class="login-form">
+          <div id="cashierFields">
+            <div class="form-group">
+              <label>${isAr ? 'كلمة مرور نقطة البيع' : 'POS Password'}</label>
+              <input type="password" id="cashierPassword" class="form-input" placeholder="${isAr ? 'أدخل كلمة المرور' : 'Enter password'}" autocomplete="current-password" dir="ltr">
+            </div>
+            <button type="submit" class="btn btn-primary btn-xl w-full">${isAr ? 'دخول' : 'Sign In'}</button>
           </div>
-          <div class="form-group">
-            <label>${t('password')}</label>
-            <input type="password" id="password" class="form-input" placeholder="${placeholderPass}" autocomplete="current-password" dir="ltr">
+        </form>
+
+        <!-- Admin: email + password -->
+        <form id="adminForm" class="login-form">
+          <div id="adminFields" class="hidden">
+            <div class="form-group">
+              <label>${isAr ? 'البريد الإلكتروني' : 'Email'}</label>
+              <input type="email" id="adminEmail" class="form-input" placeholder="${isAr ? 'admin@restaurant.com' : 'admin@restaurant.com'}" autocomplete="email" dir="ltr">
+            </div>
+            <div class="form-group">
+              <label>${isAr ? 'كلمة المرور' : 'Password'}</label>
+              <input type="password" id="adminPassword" class="form-input" placeholder="${isAr ? 'أدخل كلمة المرور' : 'Enter password'}" autocomplete="current-password" dir="ltr">
+            </div>
+            <button type="submit" class="btn btn-primary btn-xl w-full">${isAr ? 'تسجيل الدخول' : 'Login'}</button>
+            <p style="text-align:center;margin-top:16px;font-size:13px;">
+              <a href="#/register" style="color:#C9A84C;text-decoration:none;font-weight:600;">${isAr ? 'تسجيل مطعم جديد' : 'Register Restaurant'}</a>
+            </p>
           </div>
-          <button type="submit" class="btn btn-primary btn-xl w-full">${t('login_button')}</button>
-          <div id="loginError" class="hidden" style="color:var(--danger,#ef4444);text-align:center;margin-top:12px;font-size:14px;"></div>
+        </form>
+
+        <!-- Super Admin: username + password (env vars) -->
+        <form id="superForm" class="login-form">
+          <div id="superFields" class="hidden">
+            <div class="form-group">
+              <label>${isAr ? 'اسم المستخدم' : 'Username'}</label>
+              <input type="text" id="superUsername" class="form-input" placeholder="${isAr ? 'اسم المستخدم' : 'Username'}" autocomplete="username" dir="ltr">
+            </div>
+            <div class="form-group">
+              <label>${isAr ? 'كلمة المرور' : 'Password'}</label>
+              <input type="password" id="superPassword" class="form-input" placeholder="${isAr ? 'أدخل كلمة المرور' : 'Enter password'}" autocomplete="current-password" dir="ltr">
+            </div>
+            <button type="submit" class="btn btn-primary btn-xl w-full">${isAr ? 'دخول' : 'Sign In'}</button>
+          </div>
         </form>
       </div>
     </div>`;
@@ -687,6 +841,42 @@ const App = {
       margin-top: 24px;
       font-size: 11px;
       color: #A5A9B3;
+    }
+
+    .login-tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 24px;
+      border: 1.5px solid #E5E3DE;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .login-tab {
+      flex: 1;
+      padding: 10px 8px;
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      background: #FAF9F7;
+      color: #8A8F9B;
+      cursor: pointer;
+      transition: all .2s;
+      font-family: inherit;
+    }
+
+    .login-tab:not(:last-child) {
+      border-inline-end: 1px solid #E5E3DE;
+    }
+
+    .login-tab.active {
+      background: #0E1C3D;
+      color: #fff;
+    }
+
+    .login-tab:hover:not(.active) {
+      background: #F0EDE8;
+      color: #1A1A1A;
     }
   `;
   document.head.appendChild(style);

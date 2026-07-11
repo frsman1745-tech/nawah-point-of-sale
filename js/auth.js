@@ -1,99 +1,111 @@
 (function () {
   var SESSION_KEY = 'nawa_session';
   var SESSION_EXPIRY_MS = 8 * 60 * 60 * 1000;
+  var ADMIN_SESSION_EXPIRY_MS = 720 * 60 * 60 * 1000; // 30 days
   var API_BASE = (window.Nawa && window.Nawa.CONFIG) ? window.Nawa.CONFIG.API_BASE : '/api';
 
   function getNow() { return new Date().toISOString(); }
 
-  function saveSession(data) {
+  function saveSession(data, role) {
+    var expiryMs = role === 'admin' ? ADMIN_SESSION_EXPIRY_MS : SESSION_EXPIRY_MS;
     var session = {
       id: data.id || data.user?.id,
       name: data.name || data.user?.name,
       nameEn: data.nameEn || data.user?.nameEn,
       username: data.username || data.user?.username,
+      email: data.email || data.user?.email,
       role: data.role || data.user?.role,
       restaurantId: data.restaurantId || data.user?.restaurantId,
       token: data.token,
       loginAt: getNow(),
-      expiresAt: new Date(Date.now() + SESSION_EXPIRY_MS).toISOString()
+      expiresAt: new Date(Date.now() + expiryMs).toISOString()
     };
     localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     return session;
   }
 
   var Auth = {
+    // Super Admin login (env vars on server)
+    superLogin: function (username, password) {
+      return fetch(API_BASE + '/auth/super-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username, password: password })
+      })
+      .then(function (res) {
+        if (!res.ok) return res.json().then(function (d) { throw new Error(d.error || 'Login failed'); });
+        return res.json();
+      })
+      .then(function (data) {
+        return saveSession(data, 'super_admin');
+      });
+    },
+
+    // Admin login (email + password)
+    adminLogin: function (email, password) {
+      return fetch(API_BASE + '/auth/admin-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email, password: password })
+      })
+      .then(function (res) {
+        if (!res.ok) return res.json().then(function (d) { throw new Error(d.error || 'Login failed'); });
+        return res.json();
+      })
+      .then(function (data) {
+        return saveSession(data, 'admin');
+      });
+    },
+
+    // Cashier login (password only)
+    cashierLogin: function (password) {
+      return fetch(API_BASE + '/auth/cashier-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: password })
+      })
+      .then(function (res) {
+        if (!res.ok) return res.json().then(function (d) { throw new Error(d.error || 'Login failed'); });
+        return res.json();
+      })
+      .then(function (data) {
+        return saveSession(data, 'cashier');
+      });
+    },
+
+    // Legacy login
     login: function (username, password) {
-      // Try API login first
       return fetch(API_BASE + '/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: username, password: password })
       })
       .then(function (res) {
-        if (!res.ok) {
-          // Fallback to IndexedDB login
-          return Auth._fallbackLogin(username, password);
-        }
+        if (!res.ok) return res.json().then(function (d) { throw new Error(d.error || 'Login failed'); });
         return res.json();
       })
       .then(function (data) {
-        if (!data) return null;
-        if (data.token) {
-          // API login success
-          var session = saveSession(data);
-          Auth._logAudit('login', 'employees', session.id, { username: username });
-          return session;
-        }
-        // Fallback login result
-        if (data && data.role) {
-          var session = saveSession(data);
-          Auth._logAudit('login', 'employees', session.id, { username: username });
-          return session;
-        }
-        return null;
+        return saveSession(data);
       })
       .catch(function (e) {
-        console.warn('API login failed, using fallback:', e.message);
-        return Auth._fallbackLogin(username, password);
+        console.warn('API login failed:', e.message);
+        return null;
       });
     },
 
-    _fallbackLogin: function (username, password) {
-      return window.Nawa.DB.query(window.Nawa.CONFIG.STORES.EMPLOYEES, 'username', username)
-        .then(function (results) {
-          var user = results.find(function (u) {
-            return u.isActive && !u.deletedAt;
-          });
-          if (!user) return null;
-          if (user.password !== password) return null;
-          return saveSession(user);
+    // Register new restaurant
+    register: function (data) {
+      return fetch(API_BASE + '/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      })
+      .then(function (res) {
+        return res.json().then(function (d) {
+          if (!res.ok) throw new Error(d.error || 'Registration failed');
+          return d;
         });
-    },
-
-    _logAudit: function (action, store, recordId, data) {
-      try {
-        var session = Auth.getCurrentUser();
-        var token = session ? session.token : null;
-        if (!token) return;
-
-        // Try API audit log
-        fetch(API_BASE + '/audit', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token
-          },
-          body: JSON.stringify({
-            userId: session.id,
-            userName: session.name,
-            action: action,
-            store: store,
-            recordId: recordId,
-            data: data,
-            timestamp: new Date().toISOString()
-          })
-        }).catch(function () {});
-      } catch (e) {}
+      });
     },
 
     logout: function () {
@@ -142,7 +154,6 @@
       return user;
     },
 
-    // API helper with auth token
     apiFetch: function (path, options) {
       var token = this.getToken();
       var headers = (options && options.headers) || {};

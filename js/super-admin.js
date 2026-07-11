@@ -11,7 +11,9 @@ Nawa.SuperAdmin = {
     searchQuery: '',
     filterStatus: 'all',
     salesReport: null,
-    reportWeeks: 1
+    reportWeeks: 1,
+    registrations: [],
+    pendingCount: 0
   },
 
   async init() {
@@ -19,7 +21,7 @@ Nawa.SuperAdmin = {
       var user = Nawa.Auth.requireAuth('super_admin');
       if (!user) return;
     }
-    await this.loadData();
+    await Promise.all([this.loadData(), this.loadRegistrations()]);
     this.render();
   },
 
@@ -53,6 +55,28 @@ Nawa.SuperAdmin = {
     }
   },
 
+  async loadRegistrations() {
+    try {
+      var session = Nawa.Auth ? Nawa.Auth.getCurrentUser() : null;
+      if (session && session.token) {
+        var isAr = (Nawa.I18n && Nawa.I18n.getLang) ? Nawa.I18n.getLang() === 'ar' : true;
+        const res = await fetch(Nawa.CONFIG.API_BASE + '/registrations?status=pending', {
+          headers: { 'Authorization': 'Bearer ' + session.token }
+        });
+        if (res.ok) {
+          const regs = await res.json();
+          this.state.registrations = regs;
+          this.state.pendingCount = regs.length;
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load registrations:', e.message);
+    }
+    this.state.registrations = [];
+    this.state.pendingCount = 0;
+  },
+
   _updateStats(restaurants) {
     this.state.stats = {
       total: restaurants.length,
@@ -76,6 +100,7 @@ Nawa.SuperAdmin = {
         <div class="sa-content">
           ${view === 'dashboard' ? this.renderDashboard() :
             view === 'restaurants' ? this.renderRestaurants() :
+            view === 'registrations' ? this.renderRegistrations() :
             view === 'plans' ? this.renderPlans() :
             view === 'weekly-sales' ? this.renderWeeklySales() :
             this.renderDashboard()}
@@ -92,6 +117,7 @@ Nawa.SuperAdmin = {
     const isAr = (Nawa.I18n && Nawa.I18n.getLang) ? Nawa.I18n.getLang() === 'ar' : true;
     const nav = [
       { id: 'dashboard', label: isAr ? 'لوحة التحكم' : 'Dashboard', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>' },
+      { id: 'registrations', label: isAr ? 'طلبات التسجيل' : 'Registrations', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>', badge: this.state.pendingCount || '' },
       { id: 'restaurants', label: isAr ? 'المطاعم' : 'Restaurants', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21V7l9-4 9 4v14"/><path d="M9 21V11h6v10"/></svg>' },
       { id: 'plans', label: isAr ? 'الباقات' : 'Plans', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>' },
       { id: 'weekly-sales', label: isAr ? 'تقرير المبيعات الأسبوعي' : 'Weekly Sales', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>' },
@@ -593,8 +619,80 @@ Nawa.SuperAdmin = {
     const content = document.querySelector('.sa-content');
     if (!content) return;
     const view = this.state.currentView;
-    content.innerHTML = view === 'weekly-sales' ? this.renderWeeklySales() : '';
+    if (view === 'registrations') content.innerHTML = this.renderRegistrations();
+    else if (view === 'weekly-sales') content.innerHTML = this.renderWeeklySales();
+    else content.innerHTML = '';
     this.bindEvents();
+  },
+
+  renderRegistrations() {
+    var isAr = (Nawa.I18n && Nawa.I18n.getLang) ? Nawa.I18n.getLang() === 'ar' : true;
+    var regs = this.state.registrations || [];
+
+    if (regs.length === 0) {
+      return '<div class="sa-card"><div class="sa-card-body"><div class="sa-empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/></svg><h3>' + (isAr ? 'لا توجد طلبات معلقة' : 'No pending registrations') + '</h3><p style="color:var(--sa-text-muted);font-size:13px;">' + (isAr ? 'ستظهر طلبات التسجيل الجديدة هنا' : 'New registration requests will appear here') + '</p></div></div></div>';
+    }
+
+    var html = '<div class="sa-card"><div class="sa-card-header"><h2>' + (isAr ? 'طلبات التسجيل المعلقة (' + regs.length + ')' : 'Pending Registrations (' + regs.length + ')') + '</h2></div><div class="sa-card-body" style="padding:0;">';
+    html += '<div class="sa-table-wrap"><table class="sa-table"><thead><tr>';
+    html += '<th>#</th><th>' + (isAr ? 'المطعم' : 'Restaurant') + '</th><th>' + (isAr ? 'المالك' : 'Owner') + '</th><th>' + (isAr ? 'البريد' : 'Email') + '</th><th>' + (isAr ? 'الجوال' : 'Phone') + '</th><th>' + (isAr ? 'التاريخ' : 'Date') + '</th><th>' + (isAr ? 'إجراءات' : 'Actions') + '</th>';
+    html += '</tr></thead><tbody>';
+
+    regs.forEach(function (reg, i) {
+      var date = reg.createdAt ? new Date(reg.createdAt).toLocaleDateString(isAr ? 'ar-SA' : 'en') : '--';
+      html += '<tr>';
+      html += '<td>' + (i + 1) + '</td>';
+      html += '<td style="font-weight:600;">' + (reg.restaurantName || '--') + '</td>';
+      html += '<td>' + (reg.ownerName || '--') + '</td>';
+      html += '<td dir="ltr" style="text-align:start;">' + (reg.email || '--') + '</td>';
+      html += '<td dir="ltr" style="text-align:start;">' + (reg.phone || '--') + '</td>';
+      html += '<td>' + date + '</td>';
+      html += '<td>';
+      html += '<button class="btn btn-sm btn-success" data-approve-reg="' + reg.id + '" style="margin-inline-end:4px;">' + (isAr ? 'موافقة' : 'Approve') + '</button>';
+      html += '<button class="btn btn-sm btn-danger" data-reject-reg="' + reg.id + '">' + (isAr ? 'رفض' : 'Reject') + '</button>';
+      html += '</td></tr>';
+    });
+
+    html += '</tbody></table></div></div></div>';
+    return html;
+  },
+
+  async approveRegistration(regId) {
+    var session = Nawa.Auth ? Nawa.Auth.getCurrentUser() : null;
+    if (!session || !session.token) return;
+    try {
+      var res = await fetch(Nawa.CONFIG.API_BASE + '/registrations/' + regId + '/approve', {
+        method: 'PUT',
+        headers: { 'Authorization': 'Bearer ' + session.token, 'Content-Type': 'application/json' }
+      });
+      if (res.ok) {
+        await this.loadRegistrations();
+        await this.loadData();
+        this.render();
+        this.showToast(Nawa.I18n.getLang() === 'ar' ? 'تمت الموافقة على التسجيل' : 'Registration approved', 'success');
+      }
+    } catch (e) {
+      this.showToast(Nawa.I18n.getLang() === 'ar' ? 'خطأ في الموافقة' : 'Error approving', 'error');
+    }
+  },
+
+  async rejectRegistration(regId) {
+    var session = Nawa.Auth ? Nawa.Auth.getCurrentUser() : null;
+    if (!session || !session.token) return;
+    try {
+      var res = await fetch(Nawa.CONFIG.API_BASE + '/registrations/' + regId + '/reject', {
+        method: 'PUT',
+        headers: { 'Authorization': 'Bearer ' + session.token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: '' })
+      });
+      if (res.ok) {
+        await this.loadRegistrations();
+        this.render();
+        this.showToast(Nawa.I18n.getLang() === 'ar' ? 'تم رفض التسجيل' : 'Registration rejected', 'success');
+      }
+    } catch (e) {
+      this.showToast(Nawa.I18n.getLang() === 'ar' ? 'خطأ في الرفض' : 'Error rejecting', 'error');
+    }
   },
 
   renderWeeklySales() {
@@ -1080,6 +1178,22 @@ Nawa.SuperAdmin = {
       btn.addEventListener('click', () => {
         this.state.reportWeeks = parseInt(btn.dataset.reportWeeks);
         this.loadWeeklySales();
+      });
+    });
+
+    document.querySelectorAll('[data-approve-reg]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (confirm(Nawa.I18n.getLang() === 'ar' ? 'هل توافق على هذا التسجيل؟' : 'Approve this registration?')) {
+          await this.approveRegistration(btn.dataset.approveReg);
+        }
+      });
+    });
+
+    document.querySelectorAll('[data-reject-reg]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (confirm(Nawa.I18n.getLang() === 'ar' ? 'هل ترفض هذا التسجيل؟' : 'Reject this registration?')) {
+          await this.rejectRegistration(btn.dataset.rejectReg);
+        }
       });
     });
 
