@@ -431,6 +431,9 @@ const App = {
 
     return `
     <div class="login-page">
+      <button id="langToggle" class="btn btn-ghost login-lang-btn-top" title="${langTitle}">
+        ${langLabel}
+      </button>
       <div class="login-card">
         <div class="login-logo">
           ${this.getLogo(80)}
@@ -449,9 +452,6 @@ const App = {
           <button type="submit" class="btn btn-primary btn-xl w-full">${t('login_button')}</button>
           <div id="loginError" class="hidden" style="color:var(--danger,#ef4444);text-align:center;margin-top:12px;font-size:14px;"></div>
         </form>
-        <button id="langToggle" class="btn btn-ghost login-lang-btn" title="${langTitle}">
-          ${langLabel}
-        </button>
       </div>
     </div>`;
   },
@@ -459,13 +459,13 @@ const App = {
   getLogo(size) {
     size = size || 80;
     return `<svg width="${size}" height="${size}" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="50" cy="50" r="12" fill="#C9A84C"/>
-      <ellipse cx="50" cy="50" rx="35" ry="14" stroke="#C9A84C" stroke-width="2.5" fill="none" transform="rotate(0 50 50)"/>
-      <ellipse cx="50" cy="50" rx="35" ry="14" stroke="#D4B76A" stroke-width="2.5" fill="none" transform="rotate(60 50 50)"/>
-      <ellipse cx="50" cy="50" rx="35" ry="14" stroke="#B8933A" stroke-width="2.5" fill="none" transform="rotate(120 50 50)"/>
-      <circle cx="85" cy="50" r="5" fill="#D4B76A"/>
-      <circle cx="32.5" cy="21.7" r="5" fill="#C9A84C"/>
-      <circle cx="32.5" cy="78.3" r="5" fill="#B8933A"/>
+      <circle cx="50" cy="50" r="12" fill="#0D9488"/>
+      <ellipse cx="50" cy="50" rx="35" ry="14" stroke="#0D9488" stroke-width="2.5" fill="none" transform="rotate(0 50 50)"/>
+      <ellipse cx="50" cy="50" rx="35" ry="14" stroke="#14B8A6" stroke-width="2.5" fill="none" transform="rotate(60 50 50)"/>
+      <ellipse cx="50" cy="50" rx="35" ry="14" stroke="#0F766E" stroke-width="2.5" fill="none" transform="rotate(120 50 50)"/>
+      <circle cx="85" cy="50" r="5" fill="#14B8A6"/>
+      <circle cx="32.5" cy="21.7" r="5" fill="#0D9488"/>
+      <circle cx="32.5" cy="78.3" r="5" fill="#0F766E"/>
     </svg>`;
   },
 
@@ -537,6 +537,7 @@ const App = {
   style.id = 'app-login-styles';
   style.textContent = `
     .login-page {
+      position: relative;
       min-height: 100vh;
       display: flex;
       align-items: center;
@@ -631,14 +632,14 @@ const App = {
     }
 
     .btn-primary {
-      background: #C9A84C;
-      color: #0E1C3D;
+      background: #0E1C3D;
+      color: #fff;
     }
 
     .btn-primary:hover {
-      background: #B8933A;
+      background: #162B55;
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(201,168,76,.3);
+      box-shadow: 0 4px 12px rgba(14,28,61,.3);
     }
 
     .btn-ghost {
@@ -661,10 +662,10 @@ const App = {
 
     .hidden { display: none !important; }
 
-    .login-lang-btn {
+    .login-lang-btn-top {
       position: absolute;
-      bottom: 16px;
-      inset-inline-end: 16px;
+      top: 20px;
+      inset-inline-end: 20px;
       font-size: 13px;
       font-weight: 600;
       padding: 8px 18px;
@@ -673,9 +674,10 @@ const App = {
       color: #8A8F9B;
       border: 1.5px solid #E5E3DE;
       transition: all 0.2s;
+      z-index: 10;
     }
 
-    .login-lang-btn:hover {
+    .login-lang-btn-top:hover {
       background: #C9A84C;
       color: #0E1C3D;
       border-color: #C9A84C;
