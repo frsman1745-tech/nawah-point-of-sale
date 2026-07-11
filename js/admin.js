@@ -744,15 +744,15 @@
         html += '<div class="admin-employee-stat"><div class="admin-employee-stat-value">' + self.formatNumber(paidOrders.length) + '</div><div class="admin-employee-stat-label">' + Nawa.I18n.t('completed_orders') + '</div></div>';
         html += '<div class="admin-employee-stat"><div class="admin-employee-stat-value">' + self.formatCurrency(empSales) + '</div><div class="admin-employee-stat-label">' + Nawa.I18n.t('total_sales') + '</div></div>';
 
-        var todayAtt = (self.state.attendance || []).find(function (a) { return a.employeeId === emp.id && !a.clockOut; });
-        if (todayAtt) {
-          var clockTime = new Date(todayAtt.clockIn).toLocaleTimeString(isAr ? 'ar-SA' : 'en-US', { hour: '2-digit', minute: '2-digit' });
-          html += '<div class="admin-employee-stat"><div class="admin-employee-stat-value" style="color:#22c55e;font-size:0.875rem;">' + clockTime + '</div><div class="admin-employee-stat-label" style="color:#22c55e;">' + Nawa.I18n.t('clock_in') + '</div></div>';
-        } else {
-          var lastAtt = (self.state.attendance || []).filter(function (a) { return a.employeeId === emp.id; }).sort(function (a, b) { return new Date(b.clockIn) - new Date(a.clockIn); })[0];
-          if (lastAtt && lastAtt.clockOut) {
-            var clockTime = new Date(lastAtt.clockIn).toLocaleTimeString(isAr ? 'ar-SA' : 'en-US', { hour: '2-digit', minute: '2-digit' });
-            html += '<div class="admin-employee-stat"><div class="admin-employee-stat-value" style="color:var(--text-secondary,#6B7280);font-size:0.875rem;">' + clockTime + '</div><div class="admin-employee-stat-label">' + Nawa.I18n.t('attendance_today') + '</div></div>';
+        var todayAtts = (self.state.attendance || []).filter(function (a) { return a.employeeId === emp.id; }).sort(function (a, b) { return new Date(b.clockIn) - new Date(a.clockIn); });
+        var todayRec = todayAtts[0];
+        if (todayRec) {
+          var inTime = new Date(todayRec.clockIn).toLocaleTimeString(isAr ? 'ar-SA' : 'en-US', { hour: '2-digit', minute: '2-digit' });
+          if (todayRec.clockOut) {
+            var outTime = new Date(todayRec.clockOut).toLocaleTimeString(isAr ? 'ar-SA' : 'en-US', { hour: '2-digit', minute: '2-digit' });
+            html += '<div class="admin-employee-stat"><div class="admin-employee-stat-value" style="font-size:0.8125rem;display:flex;flex-direction:column;gap:2px;"><span style="color:#22c55e;">' + inTime + '</span><span style="color:#ef4444;">' + outTime + '</span></div><div class="admin-employee-stat-label">' + (isAr ? 'دخول / خروج' : 'In / Out') + '</div></div>';
+          } else {
+            html += '<div class="admin-employee-stat"><div class="admin-employee-stat-value" style="color:#22c55e;font-size:0.875rem;">' + inTime + '</div><div class="admin-employee-stat-label" style="color:#22c55e;">' + Nawa.I18n.t('clock_in') + '</div></div>';
           }
         }
 

@@ -196,13 +196,15 @@ Nawa.POS = {
 
   async _clockOut() {
     if (!Nawa.Auth || !Nawa.Auth.apiFetch || !this.state.attendanceRecord) return;
+    var self = this;
     try {
       var res = await Nawa.Auth.apiFetch('/attendance/' + this.state.attendanceRecord.id + '/clock-out', { method: 'PUT' });
       if (res.ok) {
-        var data = await res.json();
-        this.state.attendanceRecord = data;
-        this.render();
         this._showToast(Nawa.I18n.t('clock_out_success'), 'success');
+        setTimeout(function () {
+          Nawa.Auth.logout();
+          window.location.hash = '#/login';
+        }, 1500);
       }
     } catch (e) {}
   },
