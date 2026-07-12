@@ -231,6 +231,9 @@ const App = {
       case 'pos':
         this.showPOS();
         break;
+      case 'kds':
+        this.showKDS();
+        break;
       case 'admin':
         this.showAdmin();
         break;
@@ -481,6 +484,19 @@ const App = {
       await Nawa.POS.init();
     } else {
       app.innerHTML = this._renderModulePlaceholder('نقطة البيع', 'POS');
+    }
+  },
+
+  async showKDS() {
+    this.currentPage = 'kds';
+
+    const app = document.getElementById('app');
+    if (!app) return;
+
+    if (Nawa.KDS && Nawa.KDS.init) {
+      await Nawa.KDS.init();
+    } else {
+      app.innerHTML = this._renderModulePlaceholder('شاشة المطبخ', 'KDS');
     }
   },
 

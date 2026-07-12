@@ -997,6 +997,24 @@ app.post('/api/orders', authMiddleware, async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Failed to create order' }); }
 });
 
+app.put('/api/orders/:id/status', authMiddleware, async (req, res) => {
+  try {
+    const { Order: O } = getModels();
+    const order = await O.findById(req.params.id);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (req.user.role !== 'super_admin' && order.restaurantId !== req.user.restaurantId) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    const newStatus = req.body.status;
+    if (!['active', 'held', 'completed', 'cancelled', 'paid'].includes(newStatus)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+    order.status = newStatus;
+    await order.save();
+    res.json(mapOrder(order));
+  } catch (e) { res.status(500).json({ error: 'Failed to update order status' }); }
+});
+
 // === Discount Presets ===
 app.get('/api/discounts', authMiddleware, async (req, res) => {
   try {
