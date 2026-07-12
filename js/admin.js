@@ -2225,7 +2225,14 @@
       html += '</div>';
 
       html += '</div>';
-      html += '<div class="modal-footer"><button class="btn btn-ghost" id="order-modal-close-btn">' + t('close_btn') + '</button></div>';
+      html += '<div class="modal-footer">';
+      if (order.status === 'paid' || order.status === 'completed') {
+        html += '<button class="btn btn-danger" id="order-modal-refund-btn" style="margin-right:auto;background:#dc2626;color:#fff;padding:8px 16px;border:none;border-radius:8px;font-weight:600;cursor:pointer;">' + (isAr ? 'استرجاع المبلغ' : 'Refund') + '</button>';
+      }
+      if (order.status === 'refunded') {
+        html += '<span style="color:#dc2626;font-weight:700;margin-right:auto;font-size:0.875rem;">' + (isAr ? 'تم الاسترجاع' : 'REFUNDED') + '</span>';
+      }
+      html += '<button class="btn btn-ghost" id="order-modal-close-btn">' + t('close_btn') + '</button></div>';
       html += '</div></div>';
 
       document.body.insertAdjacentHTML('beforeend', html);
@@ -2242,6 +2249,27 @@
       if (closeBtn) closeBtn.addEventListener('click', closeModal);
       if (closeBtn2) closeBtn2.addEventListener('click', closeModal);
       if (overlay) overlay.addEventListener('click', function (e) { if (e.target === overlay) closeModal(); });
+
+      var refundBtn = document.getElementById('order-modal-refund-btn');
+      if (refundBtn) {
+        refundBtn.addEventListener('click', async function () {
+          var isAr = Nawa.I18n.getLang() === 'ar';
+          var reason = prompt(isAr ? 'سبب الاسترجاع:' : 'Refund reason:', '');
+          if (reason === null) return;
+          try {
+            var res = await Nawa.Auth.apiFetch('/orders/' + order.id + '/refund', { method: 'POST', body: { reason: reason } });
+            if (res && !res.error) {
+              self.showNotification(isAr ? 'تم استرجاع المبلغ' : 'Order refunded', 'success');
+              closeModal();
+              self.render();
+            } else {
+              self.showNotification(res.error || (isAr ? 'خطأ' : 'Error'), 'error');
+            }
+          } catch (e) {
+            self.showNotification(isAr ? 'خطأ' : 'Error', 'error');
+          }
+        });
+      }
     },
 
     async toggleEmployeeStatus(employeeId) {
