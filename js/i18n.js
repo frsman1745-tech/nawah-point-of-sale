@@ -466,6 +466,8 @@
     quick_fire: { ar: 'الأكثر طلباً', en: 'Quick Fire' },
     order_note_placeholder: { ar: 'أضف ملاحظة للطلب...', en: 'Add order note...' },
     order_note: { ar: 'ملاحظة الطلب', en: 'Order Note' },
+    item_note: { ar: 'ملاحظة العنصر', en: 'Item Note' },
+    item_note_placeholder: { ar: 'مثلاً: بدون بصل، شطة زيادة...', en: 'e.g.: no onions, extra spicy...' },
 
     // ── Customers ──
     customer: { ar: 'عميل', en: 'Customer' },

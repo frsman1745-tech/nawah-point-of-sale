@@ -1240,8 +1240,9 @@
           if (order.items && order.items.length > 0) {
             order.items.forEach(function (item) {
               var itemName = item.name || item.nameEn || t('item');
+              var noteHtml = item.notes ? '<div style="font-size:0.7rem;color:var(--text-secondary,#6B7280);font-style:italic;margin-top:2px;">↳ ' + self._escapeHtml(item.notes) + '</div>' : '';
               html += '<div class="admin-oh-detail-item">';
-              html += '<span class="admin-oh-detail-item-name">' + self._escapeHtml(itemName) + '</span>';
+              html += '<span class="admin-oh-detail-item-name">' + self._escapeHtml(itemName) + noteHtml + '</span>';
               html += '<span class="admin-oh-detail-item-qty">× ' + (item.quantity || item.q || 1) + '</span>';
               html += '<span class="admin-oh-detail-item-price">' + self.formatCurrency((item.price || item.pr || 0) * (item.quantity || item.q || 1)) + '</span>';
               html += '</div>';

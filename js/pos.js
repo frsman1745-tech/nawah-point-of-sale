@@ -519,11 +519,13 @@ Nawa.POS = {
 
     const items = cart.map((item, index) => {
       const name = Nawa.I18n.getLang() === 'ar' ? (item.name || item.nameEn) : (item.nameEn || item.name);
+      const noteDisplay = item.notes ? `<span class="pos-cart-item-notes">${this._escapeHtml(item.notes)}</span>` : '';
       return `
         <div class="pos-cart-item" data-cart-index="${index}">
           <div class="pos-cart-item-info">
             <span class="pos-cart-item-name">${this._escapeHtml(name)}</span>
             <span class="pos-cart-item-unit-price">${this.formatPrice(item.price)}</span>
+            ${noteDisplay}
           </div>
           <div class="pos-cart-item-controls">
             <button class="pos-qty-btn pos-qty-minus" data-action="minus" data-index="${index}">−</button>
@@ -531,9 +533,14 @@ Nawa.POS = {
             <button class="pos-qty-btn pos-qty-plus" data-action="plus" data-index="${index}">+</button>
           </div>
           <div class="pos-cart-item-subtotal">${this.formatPrice(item.subtotal)}</div>
-          <button class="pos-cart-item-remove" data-action="remove" data-index="${index}" title="${Nawa.I18n.t('delete')}">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-          </button>
+          <div class="pos-cart-item-actions">
+            <button class="pos-cart-item-note-btn${item.notes ? ' has-note' : ''}" data-action="item-note" data-index="${index}" title="${Nawa.I18n.t('item_note')}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            </button>
+            <button class="pos-cart-item-remove" data-action="remove" data-index="${index}" title="${Nawa.I18n.t('delete')}">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
+          </div>
         </div>`;
     }).join('');
 
@@ -751,7 +758,8 @@ Nawa.POS = {
         nameEn: product.nameEn || '',
         price: product.price || 0,
         quantity: 1,
-        subtotal: product.price || 0
+        subtotal: product.price || 0,
+        notes: ''
       });
     }
 
@@ -764,6 +772,19 @@ Nawa.POS = {
     if (index < 0 || index >= this.state.cart.length) return;
     this.state.cart.splice(index, 1);
     this.render();
+  },
+
+  showItemNoteModal(index) {
+    if (index < 0 || index >= this.state.cart.length) return;
+    var self = this;
+    var item = this.state.cart[index];
+    var name = Nawa.I18n.getLang() === 'ar' ? (item.name || item.nameEn) : (item.nameEn || item.name);
+    var currentNote = item.notes || '';
+    var note = prompt(Nawa.I18n.t('item_note') + ' — ' + name + ':', currentNote);
+    if (note !== null) {
+      item.notes = note.trim();
+      this.render();
+    }
   },
 
   updateQuantity(index, delta) {
@@ -1151,9 +1172,10 @@ Nawa.POS = {
 
     const rows = (order.items || []).map(item => {
       const name = Nawa.I18n.getLang() === 'ar' ? (item.name || item.nameEn) : (item.nameEn || item.name);
+      const noteLine = item.notes ? `<div style="font-size:0.7rem;color:#999;font-style:italic;margin-top:2px;">↳ ${this._escapeHtml(item.notes)}</div>` : '';
       return `
         <tr>
-          <td>${this._escapeHtml(name)}</td>
+          <td>${this._escapeHtml(name)}${noteLine}</td>
           <td class="text-center">${item.quantity}</td>
           <td class="text-center">${this.formatPrice(item.price)}</td>
           <td class="text-end">${this.formatPrice(item.subtotal)}</td>
@@ -1447,6 +1469,10 @@ Nawa.POS = {
       }
       if (action === 'remove' && !isNaN(index)) {
         this.removeFromCart(index);
+        return;
+      }
+      if (action === 'item-note' && !isNaN(index)) {
+        this.showItemNoteModal(index);
         return;
       }
 
@@ -2321,7 +2347,8 @@ Nawa.POS = {
 
     var rows = (order.items || []).map(function (item) {
       var name = lang === 'ar' ? (item.name || item.nameEn) : (item.nameEn || item.name);
-      return '<div class="pos-history-detail-row"><span>' + self._escapeHtml(name || t('item')) + '</span><span>× ' + (item.quantity || 1) + '</span><span>' + self.formatPrice((item.price || 0) * (item.quantity || 1)) + '</span></div>';
+      var noteHtml = item.notes ? '<div style="font-size:0.6875rem;color:#888;font-style:italic;margin-top:2px;">↳ ' + self._escapeHtml(item.notes) + '</div>' : '';
+      return '<div class="pos-history-detail-row"><span>' + self._escapeHtml(name || t('item')) + noteHtml + '</span><span>× ' + (item.quantity || 1) + '</span><span>' + self.formatPrice((item.price || 0) * (item.quantity || 1)) + '</span></div>';
     }).join('');
 
     var modal = document.getElementById('pos-history-modal');

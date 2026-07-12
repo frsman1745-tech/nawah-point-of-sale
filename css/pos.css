@@ -373,6 +373,47 @@ body[dir="ltr"] .pos-cart-panel {
   transform: scale(0.9);
 }
 
+.pos-cart-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.pos-cart-item-note-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+.pos-cart-item-note-btn:hover {
+  background: var(--primary-light, rgba(14,28,61,0.08));
+  color: var(--primary);
+}
+.pos-cart-item-note-btn:active {
+  transform: scale(0.9);
+}
+.pos-cart-item-note-btn.has-note {
+  color: var(--primary);
+}
+.pos-cart-item-notes {
+  font-size: 0.6875rem;
+  color: var(--primary);
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  display: block;
+  margin-top: 1px;
+}
+
 /* ===== Cart Summary ===== */
 .pos-cart-summary {
   padding: 16px 20px;
