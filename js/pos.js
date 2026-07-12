@@ -1209,6 +1209,18 @@ Nawa.POS = {
             ${discountAmount > 0 ? '<div class="pos-cart-row" style="color:#16a34a;"><span>' + Nawa.I18n.t('discount') + '</span><span>-' + this.formatPrice(discountAmount) + '</span></div>' : ''}
           </div>
           ${this.state.currentCustomer && this.state.currentCustomer.points > 0 ? '<div class="pos-redeem-section" style="margin-top:12px;padding:10px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);border-radius:8px;"><div style="display:flex;align-items:center;justify-content:space-between;"><span style="font-size:0.8125rem;font-weight:600;">🔄 ' + Nawa.I18n.getLang() === 'ar' ? 'نقاط الولاء المتاحة: ' : 'Loyalty points: ' + '<span style="color:#C9A84C;">' + this.state.currentCustomer.points + '</span></span><button class="btn btn-outline btn-sm" id="pos-redeem-pts-btn" style="font-size:0.75rem;">' + (Nawa.I18n.getLang() === 'ar' ? 'استبدال' : 'Redeem') + '</button></div></div>' : ''}
+          <div style="margin-top:12px;display:flex;gap:8px;">
+            <button class="btn btn-sm pos-pay-method-btn active" data-pay-method="cash" style="flex:1;padding:8px;border:2px solid var(--primary,#C9A84C);background:rgba(201,168,76,0.1);border-radius:8px;font-weight:600;font-size:0.8125rem;cursor:pointer;">${Nawa.I18n.getLang() === 'ar' ? '💵 نقداً' : '💵 Cash'}</button>
+            <button class="btn btn-sm pos-pay-method-btn" data-pay-method="card" style="flex:1;padding:8px;border:2px solid var(--border,#E5E7EB);background:var(--bg-secondary);border-radius:8px;font-weight:600;font-size:0.8125rem;cursor:pointer;">💳 Card</button>
+            <button class="btn btn-sm pos-pay-method-btn" data-pay-method="gift_card" style="flex:1;padding:8px;border:2px solid var(--border,#E5E7EB);background:var(--bg-secondary);border-radius:8px;font-weight:600;font-size:0.8125rem;cursor:pointer;">🎁 Gift Card</button>
+          </div>
+          <div id="pos-gift-card-section" style="display:none;margin-top:8px;padding:8px;background:rgba(201,168,76,0.05);border-radius:8px;">
+            <input type="text" id="pos-gift-card-code" class="form-input" placeholder="${Nawa.I18n.getLang() === 'ar' ? 'أدخل رمز بطاقة الهدايا' : 'Enter gift card code'}" style="text-transform:uppercase;direction:ltr;text-align:center;font-weight:600;letter-spacing:2px;">
+            <div style="margin-top:6px;display:flex;gap:6px;">
+              <button class="btn btn-sm" id="pos-gift-card-check" style="flex:1;background:var(--primary,#C9A84C);color:#fff;border:none;border-radius:6px;padding:6px;font-weight:600;cursor:pointer;">${Nawa.I18n.getLang() === 'ar' ? 'تحقق' : 'Check'}</button>
+            </div>
+            <div id="pos-gift-card-info" style="margin-top:6px;font-size:0.8125rem;display:none;"></div>
+          </div>
           <div class="form-group" style="margin-top:16px;">
             <label class="form-label">${Nawa.I18n.t('amount_received')}</label>
             <input type="number" class="form-input pos-payment-input" id="pos-amount-received" step="0.01" min="0" placeholder="0.00" autofocus />
@@ -1274,9 +1286,59 @@ Nawa.POS = {
     }
 
     if (confirmBtn) {
+      var payMethod = 'cash';
+      document.querySelectorAll('.pos-pay-method-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          document.querySelectorAll('.pos-pay-method-btn').forEach(function (b) { b.style.borderColor = 'var(--border,#E5E7EB)'; b.style.background = 'var(--bg-secondary)'; b.classList.remove('active'); });
+          btn.style.borderColor = 'var(--primary,#C9A84C)';
+          btn.style.background = 'rgba(201,168,76,0.1)';
+          btn.classList.add('active');
+          payMethod = btn.dataset.payMethod;
+          var gcSection = document.getElementById('pos-gift-card-section');
+          if (gcSection) gcSection.style.display = payMethod === 'gift_card' ? 'block' : 'none';
+          if (payMethod !== 'gift_card' && amountInput) { amountInput.disabled = false; amountInput.focus(); }
+        });
+      });
+      var gcCheckBtn = document.getElementById('pos-gift-card-check');
+      if (gcCheckBtn) {
+        gcCheckBtn.addEventListener('click', async function () {
+          var code = ((document.getElementById('pos-gift-card-code') || {}).value || '').trim();
+          var infoEl = document.getElementById('pos-gift-card-info');
+          if (!code) return;
+          try {
+            var res = await Nawa.Auth.apiFetch('/gift-cards/check/' + encodeURIComponent(code));
+            if (res && !res.error && res.balance !== undefined) {
+              infoEl.style.display = 'block';
+              infoEl.style.color = '#16a34a';
+              infoEl.innerHTML = '✅ ' + (Nawa.I18n.getLang() === 'ar' ? 'الرصيد: ' : 'Balance: ') + res.balance.toLocaleString() + ' ل.س';
+              if (amountInput) {
+                amountInput.value = Math.min(res.balance, total);
+                amountInput.dispatchEvent(new Event('input'));
+              }
+            } else {
+              infoEl.style.display = 'block';
+              infoEl.style.color = '#ef4444';
+              infoEl.innerHTML = '❌ ' + (Nawa.I18n.getLang() === 'ar' ? 'البطاقة غير موجودة' : 'Card not found');
+            }
+          } catch (e) {
+            infoEl.style.display = 'block';
+            infoEl.style.color = '#ef4444';
+            infoEl.innerHTML = '❌ ' + (Nawa.I18n.getLang() === 'ar' ? 'خطأ' : 'Error');
+          }
+        });
+      }
+
       confirmBtn.addEventListener('click', async () => {
         const received = parseFloat(amountInput.value) || 0;
         if (received < total) return;
+        if (payMethod === 'gift_card') {
+          var gcCode = ((document.getElementById('pos-gift-card-code') || {}).value || '').trim();
+          if (!gcCode) { this.showNotification(Nawa.I18n.getLang() === 'ar' ? 'أدخل رمز البطاقة' : 'Enter card code', 'error'); return; }
+          try {
+            var redeemRes = await Nawa.Auth.apiFetch('/gift-cards/redeem', { method: 'POST', body: { code: gcCode, amount: total } });
+            if (redeemRes && redeemRes.error) { this.showNotification(redeemRes.error, 'error'); return; }
+          } catch (e) { this.showNotification(Nawa.I18n.getLang() === 'ar' ? 'خطأ في البطاقة' : 'Card error', 'error'); return; }
+        }
 
         const order = {
           id: this._generateId(),
@@ -1291,7 +1353,7 @@ Nawa.POS = {
           note: this.state.orderNote,
           amountReceived: received,
           change: received - total,
-          paymentMethod: 'cash',
+          paymentMethod: payMethod,
           tableId: this.state.currentTable || null,
           floorId: this.state.currentFloor || null,
           employeeId: this.state.employee ? (this.state.employee.id || this.state.employee.username) : null,

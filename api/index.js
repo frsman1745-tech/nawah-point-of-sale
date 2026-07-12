@@ -257,7 +257,17 @@ const customerSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 }, commonOpts);
 
-let Restaurant, Registration, Order, AuditLog, Employee, Product, Cat, TableM, Floor, Attendance, Discount, Customer, Setting, CashDrawer;
+const giftCardSchema = new mongoose.Schema({
+  restaurantId: { type: String, required: true, index: true },
+  code: { type: String, required: true, unique: true, trim: true },
+  balance: { type: Number, default: 0 },
+  initialBalance: { type: Number, default: 0 },
+  isActive: { type: Boolean, default: true },
+  customerName: { type: String, trim: true },
+  createdAt: { type: Date, default: Date.now }
+}, commonOpts);
+
+let Restaurant, Registration, Order, AuditLog, Employee, Product, Cat, TableM, Floor, Attendance, Discount, Customer, Setting, CashDrawer, GiftCard;
 
 function getModels() {
   if (!Restaurant) {
@@ -275,8 +285,9 @@ function getModels() {
     Customer = mongoose.models.Customer || mongoose.model('Customer', customerSchema);
     Setting = mongoose.models.Setting || mongoose.model('Setting', settingSchema);
     CashDrawer = mongoose.models.CashDrawer || mongoose.model('CashDrawer', cashDrawerSchema);
+    GiftCard = mongoose.models.GiftCard || mongoose.model('GiftCard', giftCardSchema);
   }
-  return { Restaurant, Registration, Order, AuditLog, Employee, Product, Cat, TableM, Floor, Attendance, Discount, Customer, Setting, CashDrawer };
+  return { Restaurant, Registration, Order, AuditLog, Employee, Product, Cat, TableM, Floor, Attendance, Discount, Customer, Setting, CashDrawer, GiftCard };
 }
 
 // === Auth Middleware ===
@@ -768,7 +779,7 @@ app.put('/api/restaurants/:id', authMiddleware, superAdminOnly, async (req, res)
 
 app.delete('/api/restaurants/:id', authMiddleware, superAdminOnly, async (req, res) => {
   try {
-    const { Restaurant: R, Registration: Reg, Order: O, AuditLog: AL, Employee: E, Product: P, Cat: C, TableM: T, Floor: F, Attendance: A, Discount: D, Customer: Cus, Setting: S, CashDrawer: CD } = getModels();
+    const { Restaurant: R, Registration: Reg, Order: O, AuditLog: AL, Employee: E, Product: P, Cat: C, TableM: T, Floor: F, Attendance: A, Discount: D, Customer: Cus, Setting: S, CashDrawer: CD, GiftCard: GC } = getModels();
     const rid = req.params.id;
     const restaurant = await R.findById(rid);
     if (!restaurant) return res.status(404).json({ error: 'Restaurant not found' });
@@ -786,6 +797,7 @@ app.delete('/api/restaurants/:id', authMiddleware, superAdminOnly, async (req, r
       Cus.deleteMany({ restaurantId: rid }),
       S.deleteMany({ restaurantId: rid }),
       CD.deleteMany({ restaurantId: rid }),
+      GC.deleteMany({ restaurantId: rid }),
       Reg.deleteMany({ $or: [{ restaurantId: rid }, { restaurantName: restaurantName }] }),
       R.findByIdAndDelete(rid)
     ]);
@@ -1764,6 +1776,80 @@ app.get('/api/cash-drawer/history', authMiddleware, adminOrAbove, async (req, re
     const drawers = await CD.find(filter).sort({ openedAt: -1 }).limit(60);
     res.json(drawers);
   } catch (e) { res.status(500).json({ error: 'Failed to fetch cash drawer history' }); }
+});
+
+// === Gift Cards ===
+app.get('/api/gift-cards', authMiddleware, adminOrAbove, async (req, res) => {
+  try {
+    const { GiftCard: GC } = getModels();
+    const filter = {};
+    if (req.user.restaurantId) filter.restaurantId = req.user.restaurantId;
+    const cards = await GC.find(filter).sort({ createdAt: -1 }).limit(200);
+    res.json(cards.map(c => ({ id: c._id.toString(), code: c.code, balance: c.balance, initialBalance: c.initialBalance, isActive: c.isActive, customerName: c.customerName, restaurantId: c.restaurantId, createdAt: c.createdAt })));
+  } catch (e) { res.status(500).json({ error: 'Failed to fetch gift cards' }); }
+});
+
+app.post('/api/gift-cards', authMiddleware, adminOrAbove, async (req, res) => {
+  try {
+    const { GiftCard: GC } = getModels();
+    const b = req.body;
+    const code = sanitizeStr(b.code || '', 30).toUpperCase() || ('GC' + Date.now().toString(36).toUpperCase());
+    const balance = Math.max(parseFloat(b.balance) || 0, 0);
+    const card = new GC({
+      restaurantId: req.user.restaurantId,
+      code,
+      balance,
+      initialBalance: balance,
+      isActive: true,
+      customerName: sanitizeStr(b.customerName || '', 100)
+    });
+    await card.save();
+    res.json({ id: card._id.toString(), code: card.code, balance: card.balance, initialBalance: card.initialBalance, isActive: card.isActive, customerName: card.customerName, createdAt: card.createdAt });
+  } catch (e) {
+    if (e.code === 11000) return res.status(400).json({ error: 'Gift card code already exists' });
+    res.status(500).json({ error: 'Failed to create gift card' });
+  }
+});
+
+app.post('/api/gift-cards/redeem', authMiddleware, async (req, res) => {
+  try {
+    const { GiftCard: GC } = getModels();
+    const code = sanitizeStr(req.body.code || '', 30).toUpperCase();
+    const amount = Math.max(parseFloat(req.body.amount) || 0, 0);
+    if (!code || amount <= 0) return res.status(400).json({ error: 'Invalid code or amount' });
+    const filter = { code, isActive: true };
+    if (req.user.restaurantId) filter.restaurantId = req.user.restaurantId;
+    const card = await GC.findOne(filter);
+    if (!card) return res.status(404).json({ error: 'Gift card not found' });
+    if (card.balance < amount) return res.status(400).json({ error: 'Insufficient balance', balance: card.balance });
+    card.balance -= amount;
+    if (card.balance <= 0) card.isActive = false;
+    await card.save();
+    res.json({ id: card._id.toString(), code: card.code, balance: card.balance, redeemed: amount });
+  } catch (e) { res.status(500).json({ error: 'Failed to redeem gift card' }); }
+});
+
+app.get('/api/gift-cards/check/:code', authMiddleware, async (req, res) => {
+  try {
+    const { GiftCard: GC } = getModels();
+    const code = sanitizeStr(req.params.code || '', 30).toUpperCase();
+    const filter = { code, isActive: true };
+    if (req.user.restaurantId) filter.restaurantId = req.user.restaurantId;
+    const card = await GC.findOne(filter).lean();
+    if (!card) return res.status(404).json({ error: 'Gift card not found' });
+    res.json({ code: card.code, balance: card.balance });
+  } catch (e) { res.status(500).json({ error: 'Failed to check gift card' }); }
+});
+
+app.delete('/api/gift-cards/:id', authMiddleware, adminOrAbove, async (req, res) => {
+  try {
+    const { GiftCard: GC } = getModels();
+    const card = await GC.findById(req.params.id);
+    if (!card) return res.status(404).json({ error: 'Gift card not found' });
+    if (req.user.role !== 'super_admin' && card.restaurantId !== req.user.restaurantId) return res.status(403).json({ error: 'Access denied' });
+    await GC.findByIdAndDelete(req.params.id);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: 'Failed to delete gift card' }); }
 });
 
 // === Customers ===

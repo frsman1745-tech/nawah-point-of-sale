@@ -296,6 +296,7 @@
         case 'audit': html += this.renderAuditLog(); break;
         case 'daily-report': html += this.renderDailyReport(); break;
         case 'cash-drawer': html += this.renderCashDrawer(); break;
+        case 'gift-cards': html += this.renderGiftCards(); break;
         case 'employees': html += this.renderEmployees(); break;
         case 'customers': html += this.renderCustomers(); break;
         case 'order-history': html += this.renderOrderHistory(); break;
@@ -316,6 +317,7 @@
         { id: 'audit', label: isAr ? 'سجل التعديلات' : 'Audit Log', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>' },
         { id: 'daily-report', label: isAr ? 'التقرير اليومي' : 'Daily Report', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>' },
         { id: 'cash-drawer', label: isAr ? 'الصندوق' : 'Cash Drawer', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><circle cx="12" cy="15" r="1"/><line x1="6" y1="15" x2="8" y2="15"/><line x1="16" y1="15" x2="18" y2="15"/></svg>' },
+        { id: 'gift-cards', label: isAr ? 'بطاقات الهدايا' : 'Gift Cards', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>' },
         { id: 'employees', label: isAr ? 'الموظفين' : 'Employees', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>' },
         { id: 'customers', label: isAr ? 'العملاء' : 'Customers', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>' },
         { id: 'order-history', label: isAr ? 'سجل الطلبات' : 'Order History', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>' },
@@ -1042,6 +1044,87 @@
         listEl.innerHTML = html;
       } catch (e) {
         listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444;">' + (isAr ? 'خطأ في التحميل' : 'Failed to load') + '</div>';
+      }
+    },
+
+    renderGiftCards() {
+      var self = this;
+      var isAr = Nawa.I18n.getLang() === 'ar';
+      var html = '<div class="admin-employees">';
+      html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;flex-wrap:wrap;">';
+      html += '<h2 style="margin:0;font-size:1.25rem;font-weight:800;">' + (isAr ? 'بطاقات الهدايا' : 'Gift Cards') + '</h2>';
+      html += '<button onclick="Nawa.Admin._showAddGiftCardModal()" style="padding:8px 16px;background:#16a34a;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;">' + (isAr ? '+ إنشاء بطاقة' : '+ Create Card') + '</button>';
+      html += '</div>';
+      html += '<div id="gc-list" style="display:flex;flex-direction:column;gap:12px;">';
+      html += '<div style="text-align:center;padding:40px;color:#8A8F9B;">' + (isAr ? 'جاري التحميل...' : 'Loading...') + '</div>';
+      html += '</div></div>';
+      setTimeout(function () { self._loadGiftCards(); }, 100);
+      return html;
+    },
+
+    async _loadGiftCards() {
+      var isAr = Nawa.I18n.getLang() === 'ar';
+      var listEl = document.getElementById('gc-list');
+      if (!listEl) return;
+      try {
+        var res = await Nawa.Auth.apiFetch('/gift-cards');
+        var cards = Array.isArray(res) ? res : [];
+        if (!cards.length) {
+          listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#8A8F9B;">' + (isAr ? 'لا توجد بطاقات هدايا' : 'No gift cards yet') + '</div>';
+          return;
+        }
+        var html = '';
+        cards.forEach(function (c) {
+          var statusColor = c.isActive ? '#16a34a' : '#6b7280';
+          var statusText = c.isActive ? (isAr ? 'نشط' : 'Active') : (isAr ? 'منتهي' : 'Used');
+          html += '<div style="background:#1a1a2e;border:2px solid #334155;border-radius:12px;padding:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">';
+          html += '<div style="display:flex;align-items:center;gap:12px;">';
+          html += '<div style="font-size:1.5rem;">🎁</div>';
+          html += '<div><div style="font-weight:800;font-size:1rem;color:#C9A84C;letter-spacing:2px;font-family:monospace;">' + c.code + '</div>';
+          if (c.customerName) html += '<div style="font-size:0.8125rem;color:#94a3b8;">' + self._escapeHtml(c.customerName) + '</div>';
+          html += '</div></div>';
+          html += '<div style="display:flex;align-items:center;gap:16px;">';
+          html += '<div style="text-align:center;"><div style="font-size:0.7rem;color:#64748b;">' + (isAr ? 'المتبقي' : 'Balance') + '</div><div style="font-weight:800;font-size:1.1rem;color:#e2e8f0;">' + c.balance.toLocaleString() + '</div></div>';
+          html += '<div style="text-align:center;"><div style="font-size:0.7rem;color:#64748b;">' + (isAr ? 'الأصلي' : 'Initial') + '</div><div style="font-weight:600;color:#94a3b8;">' + c.initialBalance.toLocaleString() + '</div></div>';
+          html += '<span style="padding:3px 10px;border-radius:12px;font-size:0.75rem;font-weight:600;color:' + statusColor + ';background:' + statusColor + '20;">' + statusText + '</span>';
+          html += '<button onclick="Nawa.Admin._deleteGiftCard(\'' + c.id + '\')" style="background:none;border:none;color:#ef4444;cursor:pointer;padding:4px;" title="' + (isAr ? 'حذف' : 'Delete') + '"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg></button>';
+          html += '</div></div>';
+        });
+        listEl.innerHTML = html;
+      } catch (e) {
+        listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444;">' + (isAr ? 'خطأ في التحميل' : 'Failed to load') + '</div>';
+      }
+    },
+
+    _showAddGiftCardModal() {
+      var isAr = Nawa.I18n.getLang() === 'ar';
+      var balance = prompt(isAr ? 'مبلغ البطاقة (ل.س):' : 'Gift card amount (SYP):', '50000');
+      if (balance === null) return;
+      var amount = parseFloat(balance) || 0;
+      if (amount <= 0) return;
+      var customerName = prompt(isAr ? 'اسم العميل (اختياري):' : 'Customer name (optional):', '') || '';
+      var self = this;
+      Nawa.Auth.apiFetch('/gift-cards', { method: 'POST', body: { balance: amount, customerName: customerName } })
+        .then(function (res) {
+          if (res && !res.error) {
+            self.showNotification(isAr ? 'تم الإنشاء: ' + res.code : 'Created: ' + res.code, 'success');
+            self._loadGiftCards();
+          } else {
+            self.showNotification(res.error || 'Error', 'error');
+          }
+        })
+        .catch(function () { self.showNotification('Error', 'error'); });
+    },
+
+    async _deleteGiftCard(id) {
+      var isAr = Nawa.I18n.getLang() === 'ar';
+      if (!confirm(isAr ? 'هل تريد حذف هذه البطاقة؟' : 'Delete this gift card?')) return;
+      try {
+        await Nawa.Auth.apiFetch('/gift-cards/' + id, { method: 'DELETE' });
+        this.showNotification(isAr ? 'تم الحذف' : 'Deleted', 'success');
+        this._loadGiftCards();
+      } catch (e) {
+        this.showNotification('Error', 'error');
       }
     },
 
