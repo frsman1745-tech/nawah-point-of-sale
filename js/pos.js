@@ -446,6 +446,7 @@ Nawa.POS = {
           <button class="btn btn-ghost btn-icon" id="pos-lang-toggle" title="${Nawa.I18n.t('language')}">
             ${lang === 'ar' ? 'EN' : 'عربي'}
           </button>
+          <input type="text" id="pos-barcode-input" placeholder="${Nawa.I18n.getLang() === 'ar' ? 'مسح الباركود' : 'Scan barcode'}" style="width:140px;padding:5px 10px;border:1px solid var(--border,#E5E7EB);border-radius:6px;font-size:0.8125rem;background:var(--bg-secondary);color:var(--text-primary);direction:ltr;text-align:center;" autocomplete="off">
           <div class="pos-sync-indicator" id="pos-sync-indicator" title="${Nawa.I18n.t('status')}">
             <span class="pos-sync-dot"></span>
           </div>
@@ -1823,8 +1824,24 @@ Nawa.POS = {
       }
     });
 
-    // Keyboard shortcut: Escape to close modals
+    // Keyboard shortcut: Escape to close modals, Enter for barcode
     document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        var bcInput = document.getElementById('pos-barcode-input');
+        if (document.activeElement === bcInput && bcInput.value.trim()) {
+          var barcode = bcInput.value.trim();
+          var product = this.state.products.find(function (p) { return p.barcode === barcode; });
+          if (product) {
+            this.addToCart(product);
+            this.showNotification(Nawa.I18n.getLang() === 'ar' ? 'تمت الإضافة: ' + product.name : 'Added: ' + (product.nameEn || product.name), 'success');
+          } else {
+            this.showNotification(Nawa.I18n.getLang() === 'ar' ? 'لم يتم العثور على المنتج' : 'Product not found', 'warning');
+          }
+          bcInput.value = '';
+          e.preventDefault();
+          return;
+        }
+      }
       if (e.key === 'Escape') {
         this.hideTableModal();
         const pm = document.getElementById('pos-payment-modal');
