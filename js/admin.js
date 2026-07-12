@@ -272,6 +272,7 @@
         case 'dashboard': html += this.renderDashboard(); break;
         case 'audit': html += this.renderAuditLog(); break;
         case 'daily-report': html += this.renderDailyReport(); break;
+        case 'cash-drawer': html += this.renderCashDrawer(); break;
         case 'employees': html += this.renderEmployees(); break;
         case 'customers': html += this.renderCustomers(); break;
         case 'order-history': html += this.renderOrderHistory(); break;
@@ -291,6 +292,7 @@
         { id: 'dashboard', label: isAr ? 'لوحة التحكم' : 'Dashboard', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>' },
         { id: 'audit', label: isAr ? 'سجل التعديلات' : 'Audit Log', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>' },
         { id: 'daily-report', label: isAr ? 'التقرير اليومي' : 'Daily Report', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>' },
+        { id: 'cash-drawer', label: isAr ? 'الصندوق' : 'Cash Drawer', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><circle cx="12" cy="15" r="1"/><line x1="6" y1="15" x2="8" y2="15"/><line x1="16" y1="15" x2="18" y2="15"/></svg>' },
         { id: 'employees', label: isAr ? 'الموظفين' : 'Employees', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>' },
         { id: 'customers', label: isAr ? 'العملاء' : 'Customers', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>' },
         { id: 'order-history', label: isAr ? 'سجل الطلبات' : 'Order History', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>' },
@@ -963,6 +965,60 @@
         printWindow.document.write(printHtml);
         printWindow.document.close();
         setTimeout(function () { printWindow.print(); }, 500);
+      }
+    },
+
+    renderCashDrawer() {
+      var self = this;
+      var isAr = Nawa.I18n.getLang() === 'ar';
+      var html = '<div class="admin-employees">';
+      html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;flex-wrap:wrap;">';
+      html += '<h2 style="margin:0;font-size:1.25rem;font-weight:800;">' + (isAr ? 'سجل الصندوق' : 'Cash Drawer History') + '</h2>';
+      html += '<input type="date" id="cd-date-filter" style="padding:8px 12px;border:2px solid #334155;border-radius:8px;background:#1a1a2e;color:#e2e8f0;font-size:0.8125rem;" value="' + new Date().toISOString().slice(0,10) + '">';
+      html += '<button onclick="Nawa.Admin._loadCashDrawerHistory()" style="padding:8px 16px;background:#C9A84C;color:#0E1C3D;border:none;border-radius:8px;font-weight:700;cursor:pointer;">' + (isAr ? 'بحث' : 'Search') + '</button>';
+      html += '</div>';
+      html += '<div id="cd-history-list" style="display:flex;flex-direction:column;gap:12px;">';
+      html += '<div style="text-align:center;padding:40px;color:#8A8F9B;">' + (isAr ? 'جاري التحميل...' : 'Loading...') + '</div>';
+      html += '</div></div>';
+      setTimeout(function () { self._loadCashDrawerHistory(); }, 100);
+      return html;
+    },
+
+    async _loadCashDrawerHistory() {
+      var isAr = Nawa.I18n.getLang() === 'ar';
+      var dateEl = document.getElementById('cd-date-filter');
+      var listEl = document.getElementById('cd-history-list');
+      if (!listEl) return;
+      var date = dateEl ? dateEl.value : new Date().toISOString().slice(0, 10);
+      try {
+        var res = await Nawa.Auth.apiFetch('/cash-drawer/history?date=' + date);
+        var drawers = Array.isArray(res) ? res : [];
+        if (!drawers.length) {
+          listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#8A8F9B;">' + (isAr ? 'لا توجد سجلات لهذا اليوم' : 'No records for this date') + '</div>';
+          return;
+        }
+        var html = '';
+        drawers.forEach(function (d) {
+          var diff = (d.closingBalance !== null ? d.closingBalance : 0) - (d.expectedBalance || 0);
+          var diffColor = diff === 0 ? '#22c55e' : (diff > 0 ? '#f59e0b' : '#ef4444');
+          var statusBadge = d.isOpen
+            ? '<span style="background:#16a34a;color:#fff;padding:2px 10px;border-radius:12px;font-size:0.75rem;font-weight:600;">' + (isAr ? 'مفتوح' : 'OPEN') + '</span>'
+            : '<span style="background:#475569;color:#e2e8f0;padding:2px 10px;border-radius:12px;font-size:0.75rem;font-weight:600;">' + (isAr ? 'مغلق' : 'CLOSED') + '</span>';
+          html += '<div style="background:#1a1a2e;border:2px solid #334155;border-radius:12px;padding:16px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:12px;align-items:center;">';
+          html += '<div><div style="font-size:0.7rem;color:#8A8F9B;margin-bottom:2px;">' + (isAr ? 'الموظف' : 'Employee') + '</div><div style="font-weight:700;color:#e2e8f0;">' + (d.employeeName || '-') + '</div></div>';
+          html += '<div><div style="font-size:0.7rem;color:#8A8F9B;margin-bottom:2px;">' + (isAr ? 'الافتتاحي' : 'Opening') + '</div><div style="font-weight:700;color:#C9A84C;">' + (d.openingBalance || 0).toLocaleString() + ' ل.س</div></div>';
+          html += '<div><div style="font-size:0.7rem;color:#8A8F9B;margin-bottom:2px;">' + (isAr ? 'المتوقع' : 'Expected') + '</div><div style="font-weight:700;color:#e2e8f0;">' + (d.expectedBalance !== null ? d.expectedBalance.toLocaleString() : '-') + ' ل.س</div></div>';
+          if (d.closingBalance !== null) {
+            html += '<div><div style="font-size:0.7rem;color:#8A8F9B;margin-bottom:2px;">' + (isAr ? 'الفعلي' : 'Actual') + '</div><div style="font-weight:700;color:#e2e8f0;">' + d.closingBalance.toLocaleString() + ' ل.س</div><div style="font-size:0.75rem;color:' + diffColor + ';font-weight:700;">' + (diff >= 0 ? '+' : '') + diff.toLocaleString() + '</div></div>';
+          } else {
+            html += '<div><div style="font-size:0.7rem;color:#8A8F9B;margin-bottom:2px;">' + (isAr ? 'الفعلي' : 'Actual') + '</div><div style="color:#8A8F9B;">-</div></div>';
+          }
+          html += '<div>' + statusBadge + '</div>';
+          html += '</div>';
+        });
+        listEl.innerHTML = html;
+      } catch (e) {
+        listEl.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444;">' + (isAr ? 'خطأ في التحميل' : 'Failed to load') + '</div>';
       }
     },
 

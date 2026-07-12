@@ -223,6 +223,21 @@ const settingSchema = new mongoose.Schema({
   value: { type: mongoose.Schema.Types.Mixed, default: '' }
 }, commonOpts);
 
+const cashDrawerSchema = new mongoose.Schema({
+  restaurantId: { type: String, required: true, index: true },
+  employeeId: { type: String, required: true, index: true },
+  employeeName: { type: String, trim: true },
+  date: { type: String, required: true, index: true },
+  openingBalance: { type: Number, default: 0 },
+  closingBalance: { type: Number, default: null },
+  expectedBalance: { type: Number, default: null },
+  totalCashIn: { type: Number, default: 0 },
+  totalCashOut: { type: Number, default: 0 },
+  isOpen: { type: Boolean, default: true },
+  openedAt: { type: Date, default: Date.now },
+  closedAt: { type: Date }
+}, commonOpts);
+
 const discountSchema = new mongoose.Schema({
   restaurantId: { type: String, required: true, index: true },
   name: { type: String, required: true },
@@ -240,7 +255,7 @@ const customerSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 }, commonOpts);
 
-let Restaurant, Registration, Order, AuditLog, Employee, Product, Cat, TableM, Floor, Attendance, Discount, Customer, Setting;
+let Restaurant, Registration, Order, AuditLog, Employee, Product, Cat, TableM, Floor, Attendance, Discount, Customer, Setting, CashDrawer;
 
 function getModels() {
   if (!Restaurant) {
@@ -257,8 +272,9 @@ function getModels() {
     Discount = mongoose.models.Discount || mongoose.model('Discount', discountSchema);
     Customer = mongoose.models.Customer || mongoose.model('Customer', customerSchema);
     Setting = mongoose.models.Setting || mongoose.model('Setting', settingSchema);
+    CashDrawer = mongoose.models.CashDrawer || mongoose.model('CashDrawer', cashDrawerSchema);
   }
-  return { Restaurant, Registration, Order, AuditLog, Employee, Product, Cat, TableM, Floor, Attendance, Discount, Customer, Setting };
+  return { Restaurant, Registration, Order, AuditLog, Employee, Product, Cat, TableM, Floor, Attendance, Discount, Customer, Setting, CashDrawer };
 }
 
 // === Auth Middleware ===
@@ -750,7 +766,7 @@ app.put('/api/restaurants/:id', authMiddleware, superAdminOnly, async (req, res)
 
 app.delete('/api/restaurants/:id', authMiddleware, superAdminOnly, async (req, res) => {
   try {
-    const { Restaurant: R, Registration: Reg, Order: O, AuditLog: AL, Employee: E, Product: P, Cat: C, TableM: T, Floor: F, Attendance: A, Discount: D, Customer: Cus, Setting: S } = getModels();
+    const { Restaurant: R, Registration: Reg, Order: O, AuditLog: AL, Employee: E, Product: P, Cat: C, TableM: T, Floor: F, Attendance: A, Discount: D, Customer: Cus, Setting: S, CashDrawer: CD } = getModels();
     const rid = req.params.id;
     const restaurant = await R.findById(rid);
     if (!restaurant) return res.status(404).json({ error: 'Restaurant not found' });
@@ -767,6 +783,7 @@ app.delete('/api/restaurants/:id', authMiddleware, superAdminOnly, async (req, r
       D.deleteMany({ restaurantId: rid }),
       Cus.deleteMany({ restaurantId: rid }),
       S.deleteMany({ restaurantId: rid }),
+      CD.deleteMany({ restaurantId: rid }),
       Reg.deleteMany({ $or: [{ restaurantId: rid }, { restaurantName: restaurantName }] }),
       R.findByIdAndDelete(rid)
     ]);
@@ -1655,6 +1672,69 @@ app.put('/api/settings', authMiddleware, adminOrAbove, async (req, res) => {
     await Promise.all(ops);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: 'Failed to save settings' }); }
+});
+
+// === Cash Drawer ===
+app.post('/api/cash-drawer/open', authMiddleware, async (req, res) => {
+  try {
+    const { CashDrawer: CD } = getModels();
+    const rid = req.user.restaurantId;
+    const eid = req.user.id || req.user.employeeId;
+    const today = new Date().toISOString().slice(0, 10);
+    const existing = await CD.findOne({ restaurantId: rid, employeeId: eid, date: today, isOpen: true });
+    if (existing) return res.status(400).json({ error: 'Cash drawer already open' });
+    const emp = await (getModels().Employee).findById(eid);
+    const drawer = new CD({
+      restaurantId: rid, employeeId: eid, employeeName: emp ? (emp.name || emp.username) : '',
+      date: today, openingBalance: Math.max(parseFloat(req.body.openingBalance) || 0, 0),
+      isOpen: true, openedAt: new Date()
+    });
+    await drawer.save();
+    res.json(drawer);
+  } catch (e) { res.status(500).json({ error: 'Failed to open cash drawer' }); }
+});
+
+app.get('/api/cash-drawer/today', authMiddleware, async (req, res) => {
+  try {
+    const { CashDrawer: CD } = getModels();
+    const rid = req.user.restaurantId;
+    const eid = req.user.id || req.user.employeeId;
+    const today = new Date().toISOString().slice(0, 10);
+    const drawer = await CD.findOne({ restaurantId: rid, employeeId: eid, date: today, isOpen: true });
+    res.json(drawer || null);
+  } catch (e) { res.status(500).json({ error: 'Failed to fetch cash drawer' }); }
+});
+
+app.put('/api/cash-drawer/close', authMiddleware, async (req, res) => {
+  try {
+    const { CashDrawer: CD, Order: O } = getModels();
+    const rid = req.user.restaurantId;
+    const eid = req.user.id || req.user.employeeId;
+    const today = new Date().toISOString().slice(0, 10);
+    const drawer = await CD.findOne({ restaurantId: rid, employeeId: eid, date: today, isOpen: true });
+    if (!drawer) return res.status(404).json({ error: 'No open cash drawer found' });
+    const cashOrders = await O.find({ restaurantId: rid, employeeId: eid, date: today, m: 'cash', status: { $in: ['completed', 'paid'] } });
+    const totalCashIn = cashOrders.reduce((s, o) => s + (o.tot || 0), 0);
+    drawer.closingBalance = Math.max(parseFloat(req.body.closingBalance) || 0, 0);
+    drawer.expectedBalance = drawer.openingBalance + totalCashIn;
+    drawer.totalCashIn = totalCashIn;
+    drawer.isOpen = false;
+    drawer.closedAt = new Date();
+    await drawer.save();
+    res.json(drawer);
+  } catch (e) { res.status(500).json({ error: 'Failed to close cash drawer' }); }
+});
+
+app.get('/api/cash-drawer/history', authMiddleware, adminOrAbove, async (req, res) => {
+  try {
+    const { CashDrawer: CD } = getModels();
+    const rid = req.user.restaurantId;
+    if (!rid) return res.status(403).json({ error: 'No restaurant' });
+    const filter = { restaurantId: rid };
+    if (req.query.date) filter.date = req.query.date;
+    const drawers = await CD.find(filter).sort({ openedAt: -1 }).limit(60);
+    res.json(drawers);
+  } catch (e) { res.status(500).json({ error: 'Failed to fetch cash drawer history' }); }
 });
 
 // === Customers ===

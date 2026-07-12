@@ -259,11 +259,18 @@ Nawa.POS = {
 
   async _clockIn() {
     if (!Nawa.Auth || !Nawa.Auth.apiFetch) return;
+    var isAr = Nawa.I18n.getLang() === 'ar';
+    var balanceStr = prompt(isAr ? 'الرصيد الافتتاحي للصندوق (ل.س):' : 'Opening cash balance (SYP):', '0');
+    if (balanceStr === null) return;
+    var balance = parseFloat(balanceStr) || 0;
     try {
       var res = await Nawa.Auth.apiFetch('/attendance/clock-in', { method: 'POST' });
       if (res.ok) {
         var data = await res.json();
         this.state.attendanceRecord = data;
+        try {
+          await Nawa.Auth.apiFetch('/cash-drawer/open', { method: 'POST', body: JSON.stringify({ openingBalance: balance }) });
+        } catch (e) {}
         this.render();
         this._showToast(Nawa.I18n.t('clock_in_success'), 'success');
       } else {
@@ -279,8 +286,16 @@ Nawa.POS = {
     if (!Nawa.Auth || !Nawa.Auth.apiFetch) return;
     var isAr = Nawa.I18n.getLang() === 'ar';
     if (!confirm(isAr ? 'هل تريد تسجيل الانصراف وتسجيل الخروج؟' : 'Clock out and sign out?')) return;
-    var self = this;
     try {
+      var drawerRes = await Nawa.Auth.apiFetch('/cash-drawer/today');
+      var drawer = drawerRes && drawerRes.id ? drawerRes : null;
+      if (drawer) {
+        var countStr = prompt(isAr ? 'المبلغ الفعلي في الصندوق (ل.س):' : 'Actual cash in drawer (SYP):', drawer.expectedBalance || '0');
+        if (countStr === null) return;
+        await Nawa.Auth.apiFetch('/cash-drawer/close', { method: 'PUT', body: JSON.stringify({ closingBalance: parseFloat(countStr) || 0 }) });
+        var diff = (parseFloat(countStr) || 0) - (drawer.expectedBalance || 0);
+        this._showToast(isAr ? 'الفرق: ' + diff.toLocaleString() + ' ل.س' : 'Difference: ' + diff.toLocaleString() + ' SYP', diff === 0 ? 'success' : 'warning');
+      }
       if (this.state.attendanceRecord && this.state.attendanceRecord.id) {
         await Nawa.Auth.apiFetch('/attendance/' + this.state.attendanceRecord.id + '/clock-out', { method: 'PUT' }).catch(function () {});
       }
@@ -288,7 +303,7 @@ Nawa.POS = {
       setTimeout(function () {
         Nawa.Auth.logout();
         window.location.hash = '#/login';
-      }, 1000);
+      }, 1500);
     } catch (e) {
       Nawa.Auth.logout();
       window.location.hash = '#/login';
