@@ -585,6 +585,10 @@ Nawa.POS = {
 
     const isTakeaway = currentTableId === null;
 
+    // Floor background color
+    const currentFloorObj = floors.find(f => f.id === floorId);
+    const floorBgColor = (currentFloorObj && currentFloorObj.color) ? currentFloorObj.color : '#e8e6e1';
+
     const floorTabsHtml = floors.length > 0 ? `
       <div class="pos-modal-floor-tabs">
         ${floors.map(floor => {
@@ -607,7 +611,6 @@ Nawa.POS = {
         <span class="pos-table-shape-number">${Nawa.I18n.t('takeaway')}</span>
       </div>`;
 
-    let tableShapesHtml = '';
     const renderTable = (table) => {
       const isSelected = currentTableId === table.id;
       const isOccupied = table.status === 'occupied';
@@ -615,6 +618,9 @@ Nawa.POS = {
       const label = table.name || table.number || table.id;
       const shape = table.shape || 'square';
       const seats = table.seats || 4;
+      const customW = table.width || 0;
+      const customH = table.height || 0;
+      const tableColor = table.color || '';
       let shapeClass = 'square';
       if (shape === 'round') shapeClass = 'round';
       else if (shape === 'rectangle') shapeClass = 'rect';
@@ -637,14 +643,19 @@ Nawa.POS = {
 
       const seatCount = isOccupied ? seats : '0/' + seats;
 
+      let customStyle = '';
+      if (customW > 0) customStyle += 'width:' + customW + 'px;';
+      if (customH > 0) customStyle += 'min-height:' + customH + 'px;height:' + customH + 'px;';
+
       return `
-        <div class="pos-table-shape ${shapeClass} ${statusClass}" data-table-id="${table.id}" data-action="select-table">
+        <div class="pos-table-shape ${shapeClass} ${statusClass}" data-table-id="${table.id}" data-action="select-table" style="${customStyle}${tableColor ? '--table-color:' + tableColor + ';' : ''}">
           <span class="pos-table-shape-number">${this._escapeHtml(String(label))}</span>
           <span class="pos-table-shape-seats">${seatCount}</span>
           ${orderInfo}
         </div>`;
     };
 
+    let tableShapesHtml = '';
     if (tables.length > 0) {
       tableShapesHtml = tables.map(renderTable).join('');
     } else if (floors.length > 0) {
@@ -668,7 +679,7 @@ Nawa.POS = {
         </div>
         ${floorTabsHtml}
         <div class="modal-body" style="padding:0;">
-          <div class="pos-table-plan">
+          <div class="pos-table-plan" style="background:${this._escapeHtml(floorBgColor)};">
             ${takeawayHtml}
             ${tableShapesHtml}
           </div>

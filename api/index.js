@@ -193,6 +193,9 @@ const tableSchema = new mongoose.Schema({
   seats: { type: Number, default: 4 },
   floorId: { type: String, trim: true },
   shape: { type: String, enum: ['round', 'square', 'rectangle', 'pill'], default: 'square' },
+  width: { type: Number, default: 0 },
+  height: { type: Number, default: 0 },
+  color: { type: String, default: '' },
   status: { type: String, enum: ['free', 'occupied', 'reserved'], default: 'free' },
   createdAt: { type: Date, default: Date.now }
 }, commonOpts);
@@ -200,6 +203,7 @@ const tableSchema = new mongoose.Schema({
 const floorSchema = new mongoose.Schema({
   restaurantId: { type: String, required: true, index: true },
   name: { type: String, required: true, trim: true },
+  color: { type: String, default: '' },
   sortOrder: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now }
 }, commonOpts);
@@ -1438,7 +1442,10 @@ app.post('/api/tables', authMiddleware, adminOrAbove, async (req, res) => {
       name: sanitizeStr(b.name, 100),
       seats: typeof b.seats === 'number' ? b.seats : 4,
       floorId: sanitizeStr(b.floorId, 50),
-      shape: ['round', 'square', 'rectangle'].includes(b.shape) ? b.shape : 'square',
+      shape: ['round', 'square', 'rectangle', 'pill'].includes(b.shape) ? b.shape : 'square',
+      width: typeof b.width === 'number' ? b.width : 0,
+      height: typeof b.height === 'number' ? b.height : 0,
+      color: typeof b.color === 'string' ? b.color : '',
       status: ['free', 'occupied', 'reserved'].includes(b.status) ? b.status : 'free'
     });
     await item.save();
@@ -1460,7 +1467,10 @@ app.put('/api/tables/:id', authMiddleware, adminOrAbove, async (req, res) => {
     if (b.name !== undefined) allowed.name = sanitizeStr(b.name, 100);
     if (b.seats !== undefined && typeof b.seats === 'number') allowed.seats = b.seats;
     if (b.floorId !== undefined) allowed.floorId = sanitizeStr(b.floorId, 50);
-    if (b.shape !== undefined && ['round', 'square', 'rectangle'].includes(b.shape)) allowed.shape = b.shape;
+    if (b.shape !== undefined && ['round', 'square', 'rectangle', 'pill'].includes(b.shape)) allowed.shape = b.shape;
+    if (b.width !== undefined && typeof b.width === 'number') allowed.width = b.width;
+    if (b.height !== undefined && typeof b.height === 'number') allowed.height = b.height;
+    if (b.color !== undefined) allowed.color = typeof b.color === 'string' ? b.color : '';
     if (b.status !== undefined && ['free', 'occupied', 'reserved'].includes(b.status)) allowed.status = b.status;
     const updated = await T.findByIdAndUpdate(req.params.id, allowed, { new: true });
     res.json({ ...updated.toObject(), id: updated._id.toString() });
@@ -1499,6 +1509,7 @@ app.post('/api/floors', authMiddleware, adminOrAbove, async (req, res) => {
     const item = new F({
       restaurantId: req.user.restaurantId || sanitizeStr(b.restaurantId, 50),
       name: sanitizeStr(b.name, 100),
+      color: typeof b.color === 'string' ? b.color : '',
       sortOrder: typeof b.sortOrder === 'number' ? b.sortOrder : 0
     });
     await item.save();
@@ -1517,6 +1528,7 @@ app.put('/api/floors/:id', authMiddleware, adminOrAbove, async (req, res) => {
     const b = req.body;
     const allowed = {};
     if (b.name !== undefined) allowed.name = sanitizeStr(b.name, 100);
+    if (b.color !== undefined) allowed.color = typeof b.color === 'string' ? b.color : '';
     if (b.sortOrder !== undefined && typeof b.sortOrder === 'number') allowed.sortOrder = b.sortOrder;
     const updated = await F.findByIdAndUpdate(req.params.id, allowed, { new: true });
     res.json({ ...updated.toObject(), id: updated._id.toString() });

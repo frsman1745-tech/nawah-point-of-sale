@@ -1676,15 +1676,25 @@
         html += '<div class="form-group" style="flex:1"><label class="form-label">' + (isAr ? 'اسم الطاولة' : 'Table Name') + '</label>';
         html += '<input type="text" class="form-input" id="ds-m-name" value="' + Admin._escapeHtml(item ? (item.name || '') : '') + '" placeholder="' + (isAr ? 'اختياري' : 'Optional') + '"></div>';
         html += '</div>';
-        html += '<div class="form-group"><label class="form-label">' + (isAr ? 'عدد الأشخاص' : 'Seats') + '</label>';
+        html += '<div style="display:flex;gap:12px;">';
+        html += '<div class="form-group" style="flex:1"><label class="form-label">' + (isAr ? 'عدد الأشخاص' : 'Seats') + '</label>';
         html += '<input type="number" class="form-input" id="ds-m-seats" value="' + (item ? (item.seats || 4) : 4) + '" min="1" max="50"></div>';
-        html += '<div class="form-group"><label class="form-label">' + (isAr ? 'شكل الطاولة' : 'Table Shape') + '</label>';
+        html += '<div class="form-group" style="flex:1"><label class="form-label">' + (isAr ? 'شكل الطاولة' : 'Table Shape') + '</label>';
         html += '<select class="form-input" id="ds-m-shape">';
         html += '<option value="round"' + (item && item.shape === 'round' ? ' selected' : '') + '>' + (isAr ? 'دائري' : 'Round') + '</option>';
         html += '<option value="square"' + (!item || item.shape === 'square' || !item.shape ? ' selected' : '') + '>' + (isAr ? 'مربع' : 'Square') + '</option>';
         html += '<option value="rectangle"' + (item && item.shape === 'rectangle' ? ' selected' : '') + '>' + (isAr ? 'مستطيل' : 'Rectangle') + '</option>';
         html += '<option value="pill"' + (item && item.shape === 'pill' ? ' selected' : '') + '>' + (isAr ? 'بيضوي' : 'Pill/Oval') + '</option>';
         html += '</select></div>';
+        html += '</div>';
+        html += '<div style="display:flex;gap:12px;">';
+        html += '<div class="form-group" style="flex:1"><label class="form-label">' + (isAr ? 'العرض (بكسل)' : 'Width (px)') + '</label>';
+        html += '<input type="number" class="form-input" id="ds-m-width" value="' + (item ? (item.width || 0) : 0) + '" min="0" max="500" placeholder="' + (isAr ? 'تلقائي' : 'Auto') + '"></div>';
+        html += '<div class="form-group" style="flex:1"><label class="form-label">' + (isAr ? 'الارتفاع (بكسل)' : 'Height (px)') + '</label>';
+        html += '<input type="number" class="form-input" id="ds-m-height" value="' + (item ? (item.height || 0) : 0) + '" min="0" max="500" placeholder="' + (isAr ? 'تلقائي' : 'Auto') + '"></div>';
+        html += '<div class="form-group" style="flex:1"><label class="form-label">' + (isAr ? 'لون الطاولة' : 'Table Color') + '</label>';
+        html += '<input type="color" class="form-input" id="ds-m-color" value="' + (item && item.color ? item.color : '#6b7280') + '" style="height:38px;padding:4px;cursor:pointer;"></div>';
+        html += '</div>';
         html += '<div class="form-group"><label class="form-label">' + (isAr ? 'الأرضية' : 'Floor') + '</label>';
         html += '<select class="form-input" id="ds-m-floorId"><option value="">' + (isAr ? '-- اختر أرضية (إلزامي) --' : '-- Select Floor (Required) --') + '</option>';
         floors.forEach(function (f) {
@@ -1695,8 +1705,12 @@
         title.textContent = item ? (isAr ? 'تعديل أرضية' : 'Edit Floor') : (isAr ? 'إضافة أرضية' : 'Add Floor');
         html += '<div class="form-group"><label class="form-label">' + (isAr ? 'اسم الأرضية' : 'Floor Name') + ' *</label>';
         html += '<input type="text" class="form-input" id="ds-m-name" value="' + Admin._escapeHtml(item ? item.name : '') + '" placeholder="' + (isAr ? 'مثال: الطابق الأول' : 'e.g. Ground Floor') + '"></div>';
-        html += '<div class="form-group"><label class="form-label">' + (isAr ? 'الترتيب' : 'Sort Order') + '</label>';
+        html += '<div style="display:flex;gap:12px;">';
+        html += '<div class="form-group" style="flex:1"><label class="form-label">' + (isAr ? 'لون الأرضية' : 'Floor Color') + '</label>';
+        html += '<input type="color" class="form-input" id="ds-m-floor-color" value="' + (item && item.color ? item.color : '#e8e6e1') + '" style="height:38px;padding:4px;cursor:pointer;"></div>';
+        html += '<div class="form-group" style="flex:1"><label class="form-label">' + (isAr ? 'الترتيب' : 'Sort Order') + '</label>';
         html += '<input type="number" class="form-input" id="ds-m-sortOrder" value="' + (item && item.sortOrder !== undefined ? item.sortOrder : 0) + '" min="0"></div>';
+        html += '</div>';
       } else if (type === 'discount') {
         title.textContent = item ? (isAr ? 'تعديل خصم' : 'Edit Discount') : (isAr ? 'إضافة خصم' : 'Add Discount');
         html += '<div class="form-group"><label class="form-label">' + (isAr ? 'اسم الخصم' : 'Discount Name') + ' *</label>';
@@ -1780,6 +1794,9 @@
           var seats = parseInt((document.getElementById('ds-m-seats') || {}).value) || 4;
           var floorId = (document.getElementById('ds-m-floorId') || {}).value || '';
           var shape = (document.getElementById('ds-m-shape') || {}).value || 'square';
+          var width = parseInt((document.getElementById('ds-m-width') || {}).value) || 0;
+          var height = parseInt((document.getElementById('ds-m-height') || {}).value) || 0;
+          var color = (document.getElementById('ds-m-color') || {}).value || '';
           if (!number) { if (errEl) { errEl.textContent = isAr ? 'رقم الطاولة مطلوب' : 'Table number is required'; errEl.classList.remove('hidden'); } return; }
           if (!floorId) { if (errEl) { errEl.textContent = isAr ? 'يجب اختيار الأرضية' : 'Floor is required'; errEl.classList.remove('hidden'); } return; }
           if (m.editId) {
@@ -1790,27 +1807,31 @@
               existing.seats = seats;
               existing.floorId = floorId;
               existing.shape = shape;
+              existing.width = width;
+              existing.height = height;
+              existing.color = color;
               await DB.update(S.TABLES, existing.id, existing);
-              Nawa.Auth.apiFetch('/tables/' + existing.id, { method: 'PUT', body: { number: existing.number, name: existing.name, seats: existing.seats, floorId: existing.floorId, shape: existing.shape } }).catch(function(){});
+              Nawa.Auth.apiFetch('/tables/' + existing.id, { method: 'PUT', body: { number: existing.number, name: existing.name, seats: existing.seats, floorId: existing.floorId, shape: existing.shape, width: existing.width, height: existing.height, color: existing.color } }).catch(function(){});
             }
           } else {
-            var newItem = { id: Date.now().toString(), number: number, name: name.trim(), seats: seats, floorId: floorId, shape: shape, status: 'free', createdAt: new Date().toISOString() };
+            var newItem = { id: Date.now().toString(), number: number, name: name.trim(), seats: seats, floorId: floorId, shape: shape, width: width, height: height, color: color, status: 'free', createdAt: new Date().toISOString() };
             await DB.add(S.TABLES, newItem);
             this.state.tables.push(newItem);
-            Nawa.Auth.apiFetch('/tables', { method: 'POST', body: { number: newItem.number, name: newItem.name, seats: newItem.seats, floorId: newItem.floorId, shape: newItem.shape } }).catch(function(){});
+            Nawa.Auth.apiFetch('/tables', { method: 'POST', body: { number: newItem.number, name: newItem.name, seats: newItem.seats, floorId: newItem.floorId, shape: newItem.shape, width: newItem.width, height: newItem.height, color: newItem.color } }).catch(function(){});
           }
         } else if (m.type === 'floor') {
           var name = (document.getElementById('ds-m-name') || {}).value || '';
           var sortOrder = parseInt((document.getElementById('ds-m-sortOrder') || {}).value) || 0;
+          var floorColor = (document.getElementById('ds-m-floor-color') || {}).value || '';
           if (!name.trim()) { if (errEl) { errEl.textContent = isAr ? 'اسم الأرضية مطلوب' : 'Floor name is required'; errEl.classList.remove('hidden'); } return; }
           if (m.editId) {
             var existing = this.state.floors.find(function (f) { return f.id === m.editId; });
-            if (existing) { existing.name = name.trim(); existing.sortOrder = sortOrder; await DB.update(S.FLOORS, existing.id, existing); Nawa.Auth.apiFetch('/floors/' + existing.id, { method: 'PUT', body: { name: existing.name, sortOrder: existing.sortOrder } }).catch(function(){}); }
+            if (existing) { existing.name = name.trim(); existing.sortOrder = sortOrder; existing.color = floorColor; await DB.update(S.FLOORS, existing.id, existing); Nawa.Auth.apiFetch('/floors/' + existing.id, { method: 'PUT', body: { name: existing.name, sortOrder: existing.sortOrder, color: existing.color } }).catch(function(){}); }
           } else {
-            var newItem = { id: Date.now().toString(), name: name.trim(), sortOrder: sortOrder, createdAt: new Date().toISOString() };
+            var newItem = { id: Date.now().toString(), name: name.trim(), color: floorColor, sortOrder: sortOrder, createdAt: new Date().toISOString() };
             await DB.add(S.FLOORS, newItem);
             this.state.floors.push(newItem);
-            Nawa.Auth.apiFetch('/floors', { method: 'POST', body: { name: newItem.name, sortOrder: newItem.sortOrder } }).catch(function(){});
+            Nawa.Auth.apiFetch('/floors', { method: 'POST', body: { name: newItem.name, color: newItem.color, sortOrder: newItem.sortOrder } }).catch(function(){});
           }
         } else if (m.type === 'discount') {
           var name = (document.getElementById('ds-m-name') || {}).value || '';
