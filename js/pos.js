@@ -53,7 +53,8 @@ Nawa.POS = {
       this._loadProducts(),
       this._loadCategories(),
       this._loadOrders(),
-      this._loadDiscountPresets()
+      this._loadDiscountPresets(),
+      this._loadSettings()
     ]);
 
     await this._syncFromServer();
@@ -119,6 +120,36 @@ Nawa.POS = {
       }
     } catch (e) {
       this.state.discountPresets = [];
+    }
+  },
+
+  async _loadSettings() {
+    try {
+      var settingsArr = await Nawa.DB.getAll(Nawa.CONFIG.STORES.SETTINGS) || [];
+      var settings = {};
+      settingsArr.forEach(function (s) { settings[s.key] = s.value; });
+      try {
+        var res = await Nawa.Auth.apiFetch('/settings');
+        if (res.ok) {
+          var serverSettings = await res.json();
+          serverSettings.forEach(function (s) { settings[s.key] = s.value; });
+          for (var i = 0; i < serverSettings.length; i++) {
+            var existing = settingsArr.find(function (x) { return x.key === serverSettings[i].key; });
+            if (existing) {
+              await Nawa.DB.update(Nawa.CONFIG.STORES.SETTINGS, existing.id, { value: serverSettings[i].value });
+            } else {
+              await Nawa.DB.add(Nawa.CONFIG.STORES.SETTINGS, { key: serverSettings[i].key, value: serverSettings[i].value });
+            }
+          }
+        }
+      } catch (e) {}
+      this.state.settings = settings;
+      var taxRate = parseFloat(settings.taxRate);
+      if (!isNaN(taxRate) && taxRate >= 0 && taxRate <= 100) {
+        this.TAX_RATE = taxRate / 100;
+      }
+    } catch (e) {
+      this.state.settings = {};
     }
   },
 
@@ -197,6 +228,18 @@ Nawa.POS = {
       if (res.ok) {
         var serverDiscounts = await res.json();
         self.state.discountPresets = serverDiscounts.filter(function (d) { return d.active !== false; });
+      }
+    } catch (e) {}
+
+    try {
+      var res = await Nawa.Auth.apiFetch('/settings');
+      if (res.ok) {
+        var serverSettings = await res.json();
+        serverSettings.forEach(function (s) { self.state.settings[s.key] = s.value; });
+        var taxRate = parseFloat(self.state.settings.taxRate);
+        if (!isNaN(taxRate) && taxRate >= 0 && taxRate <= 100) {
+          self.TAX_RATE = taxRate / 100;
+        }
       }
     } catch (e) {}
   },
@@ -520,7 +563,7 @@ Nawa.POS = {
             <span id="pos-subtotal">${this.formatPrice(subtotal)}</span>
           </div>
           <div class="pos-cart-row">
-            <span>${Nawa.I18n.t('tax')} (15%)</span>
+            <span>${Nawa.I18n.t('tax')} (${Math.round(this.TAX_RATE * 100)}%)</span>
             <span id="pos-tax">${this.formatPrice(tax)}</span>
           </div>
           ${this.state.discount ? `
@@ -992,7 +1035,7 @@ Nawa.POS = {
               <span>${this.formatPrice(subtotal)}</span>
             </div>
             <div class="pos-cart-row">
-              <span>${Nawa.I18n.t('tax')} (15%)</span>
+              <span>${Nawa.I18n.t('tax')} (${Math.round(this.TAX_RATE * 100)}%)</span>
               <span>${this.formatPrice(tax)}</span>
             </div>
             ${discountAmount > 0 ? '<div class="pos-cart-row" style="color:#16a34a;"><span>' + Nawa.I18n.t('discount') + '</span><span>-' + this.formatPrice(discountAmount) + '</span></div>' : ''}
@@ -1159,7 +1202,7 @@ Nawa.POS = {
                 <span>${this.formatPrice(order.subtotal)}</span>
               </div>
               <div class="pos-cart-row">
-                <span>${Nawa.I18n.t('tax')} (15%)</span>
+                <span>${Nawa.I18n.t('tax')} (${Math.round(this.TAX_RATE * 100)}%)</span>
                 <span>${this.formatPrice(order.tax)}</span>
               </div>
               ${order.discountAmount > 0 ? `

@@ -1262,6 +1262,7 @@
       var self = this;
       var t = Nawa.I18n.t;
       this.state.orderHistoryLoading = true;
+      this.state._orderHistoryFetched = true;
       this.render();
 
       var params = [];
@@ -2357,6 +2358,7 @@
       try {
         await Promise.all(ops);
         settingsToSave.forEach(function (s) { self.state.settings[s.key] = s.value; });
+        Nawa.Auth.apiFetch('/settings', { method: 'PUT', body: settingsToSave.map(function(s){ return { key: s.key, value: s.value }; }) }).catch(function(){});
         this.showNotification(Nawa.I18n.t('success_save'), 'success');
       } catch (e) {
         this.showNotification(Nawa.I18n.t('error_generic'), 'error');
@@ -2764,7 +2766,7 @@
           });
         });
 
-        if (this.state.orderHistory.length === 0 && !this.state.orderHistoryLoading) {
+        if (this.state.orderHistory.length === 0 && !this.state.orderHistoryLoading && !this.state._orderHistoryFetched) {
           this.fetchOrderHistory();
         }
       }

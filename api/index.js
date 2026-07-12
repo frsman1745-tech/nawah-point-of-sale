@@ -217,6 +217,12 @@ const attendanceSchema = new mongoose.Schema({
   date: { type: String, index: true }
 }, commonOpts);
 
+const settingSchema = new mongoose.Schema({
+  restaurantId: { type: String, required: true, index: true },
+  key: { type: String, required: true, trim: true },
+  value: { type: mongoose.Schema.Types.Mixed, default: '' }
+}, commonOpts);
+
 const discountSchema = new mongoose.Schema({
   restaurantId: { type: String, required: true, index: true },
   name: { type: String, required: true },
@@ -234,7 +240,7 @@ const customerSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 }, commonOpts);
 
-let Restaurant, Registration, Order, AuditLog, Employee, Product, Cat, TableM, Floor, Attendance, Discount, Customer;
+let Restaurant, Registration, Order, AuditLog, Employee, Product, Cat, TableM, Floor, Attendance, Discount, Customer, Setting;
 
 function getModels() {
   if (!Restaurant) {
@@ -250,8 +256,9 @@ function getModels() {
     Attendance = mongoose.models.Attendance || mongoose.model('Attendance', attendanceSchema);
     Discount = mongoose.models.Discount || mongoose.model('Discount', discountSchema);
     Customer = mongoose.models.Customer || mongoose.model('Customer', customerSchema);
+    Setting = mongoose.models.Setting || mongoose.model('Setting', settingSchema);
   }
-  return { Restaurant, Registration, Order, AuditLog, Employee, Product, Cat, TableM, Floor, Attendance, Discount, Customer };
+  return { Restaurant, Registration, Order, AuditLog, Employee, Product, Cat, TableM, Floor, Attendance, Discount, Customer, Setting };
 }
 
 // === Auth Middleware ===
@@ -743,7 +750,7 @@ app.put('/api/restaurants/:id', authMiddleware, superAdminOnly, async (req, res)
 
 app.delete('/api/restaurants/:id', authMiddleware, superAdminOnly, async (req, res) => {
   try {
-    const { Restaurant: R, Registration: Reg, Order: O, AuditLog: AL, Employee: E, Product: P, Cat: C, TableM: T, Floor: F, Attendance: A, Discount: D, Customer: Cus } = getModels();
+    const { Restaurant: R, Registration: Reg, Order: O, AuditLog: AL, Employee: E, Product: P, Cat: C, TableM: T, Floor: F, Attendance: A, Discount: D, Customer: Cus, Setting: S } = getModels();
     const rid = req.params.id;
     const restaurant = await R.findById(rid);
     if (!restaurant) return res.status(404).json({ error: 'Restaurant not found' });
@@ -759,6 +766,7 @@ app.delete('/api/restaurants/:id', authMiddleware, superAdminOnly, async (req, r
       A.deleteMany({ restaurantId: rid }),
       D.deleteMany({ restaurantId: rid }),
       Cus.deleteMany({ restaurantId: rid }),
+      S.deleteMany({ restaurantId: rid }),
       Reg.deleteMany({ $or: [{ restaurantId: rid }, { restaurantName: restaurantName }] }),
       R.findByIdAndDelete(rid)
     ]);
@@ -1603,6 +1611,32 @@ app.put('/api/attendance/:id/clock-out', authMiddleware, async (req, res) => {
     await item.save();
     res.json({ ...item.toObject(), id: item._id.toString() });
   } catch (e) { res.status(500).json({ error: 'Failed to clock out' }); }
+});
+
+// === Settings (per-restaurant) ===
+app.get('/api/settings', authMiddleware, async (req, res) => {
+  try {
+    const { Setting: S } = getModels();
+    const filter = {};
+    if (req.user.role !== 'super_admin' && req.user.restaurantId) filter.restaurantId = req.user.restaurantId;
+    else if (req.user.role !== 'super_admin') return res.json([]);
+    const items = await S.find(filter).lean();
+    res.json(items.map(i => ({ id: i._id.toString(), key: i.key, value: i.value })));
+  } catch (e) { res.status(500).json({ error: 'Failed to fetch settings' }); }
+});
+
+app.put('/api/settings', authMiddleware, adminOrAbove, async (req, res) => {
+  try {
+    const { Setting: S } = getModels();
+    const rid = req.user.restaurantId;
+    if (!rid) return res.status(403).json({ error: 'No restaurant' });
+    const entries = Array.isArray(req.body) ? req.body : [];
+    const ops = entries.map(e => {
+      return S.findOneAndUpdate({ restaurantId: rid, key: e.key }, { restaurantId: rid, key: e.key, value: e.value }, { upsert: true, new: true });
+    });
+    await Promise.all(ops);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: 'Failed to save settings' }); }
 });
 
 // === Customers ===
