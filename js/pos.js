@@ -406,7 +406,7 @@ Nawa.POS = {
     const lang = Nawa.I18n.getLang();
 
     const customerLabel = customer
-      ? this._escapeHtml(customer.name)
+      ? this._escapeHtml(customer.name) + (customer.points ? ' <span style="color:#C9A84C;font-size:0.7rem;">' + customer.points + ' pts</span>' : '')
       : Nawa.I18n.t('no_customer');
     const customerClass = customer ? ' pos-customer-selected' : '';
 
@@ -1208,6 +1208,7 @@ Nawa.POS = {
             </div>
             ${discountAmount > 0 ? '<div class="pos-cart-row" style="color:#16a34a;"><span>' + Nawa.I18n.t('discount') + '</span><span>-' + this.formatPrice(discountAmount) + '</span></div>' : ''}
           </div>
+          ${this.state.currentCustomer && this.state.currentCustomer.points > 0 ? '<div class="pos-redeem-section" style="margin-top:12px;padding:10px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);border-radius:8px;"><div style="display:flex;align-items:center;justify-content:space-between;"><span style="font-size:0.8125rem;font-weight:600;">🔄 ' + Nawa.I18n.getLang() === 'ar' ? 'نقاط الولاء المتاحة: ' : 'Loyalty points: ' + '<span style="color:#C9A84C;">' + this.state.currentCustomer.points + '</span></span><button class="btn btn-outline btn-sm" id="pos-redeem-pts-btn" style="font-size:0.75rem;">' + (Nawa.I18n.getLang() === 'ar' ? 'استبدال' : 'Redeem') + '</button></div></div>' : ''}
           <div class="form-group" style="margin-top:16px;">
             <label class="form-label">${Nawa.I18n.t('amount_received')}</label>
             <input type="number" class="form-input pos-payment-input" id="pos-amount-received" step="0.01" min="0" placeholder="0.00" autofocus />
@@ -1247,6 +1248,28 @@ Nawa.POS = {
         if (confirmBtn) {
           confirmBtn.disabled = received < total;
         }
+      });
+    }
+
+    var redeemBtn = document.getElementById('pos-redeem-pts-btn');
+    if (redeemBtn) {
+      var self = this;
+      redeemBtn.addEventListener('click', async function () {
+        var cust = self.state.currentCustomer;
+        if (!cust || !cust.points) return;
+        var isAr = Nawa.I18n.getLang() === 'ar';
+        var ptsStr = prompt(isAr ? 'عدد النقاط للاستبدال (المتاح: ' + cust.points + '):' : 'Points to redeem (available: ' + cust.points + '):', cust.points);
+        if (ptsStr === null) return;
+        var pts = parseInt(ptsStr) || 0;
+        if (pts <= 0 || pts > cust.points) return;
+        try {
+          var res = await Nawa.Auth.apiFetch('/customers/' + cust.id + '/redeem-points', { method: 'POST', body: { points: pts } });
+          if (res && !res.error) {
+            self.state.currentCustomer.points = res.points;
+            self._showToast(isAr ? 'تم استبدال ' + pts + ' نقطة' : pts + ' points redeemed', 'success');
+            self.processPayment();
+          }
+        } catch (e) {}
       });
     }
 
@@ -2246,6 +2269,7 @@ Nawa.POS = {
       html += '</div></div>';
       html += '<div class="pos-customer-card-stats">';
       html += '<span class="pos-customer-card-stat">' + (c.orderCount || 0) + ' ' + Nawa.I18n.t('customer_orders') + '</span>';
+      if (c.points) html += '<span class="pos-customer-card-stat" style="color:var(--primary,#C9A84C);font-weight:700;">' + (c.points || 0) + ' pts</span>';
       html += '</div></div>';
     });
 

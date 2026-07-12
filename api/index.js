@@ -253,6 +253,7 @@ const customerSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
   phone: { type: String, trim: true },
   notes: { type: String, trim: true },
+  points: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now }
 }, commonOpts);
 
@@ -1011,6 +1012,13 @@ app.post('/api/orders', authMiddleware, async (req, res) => {
     };
     const order = new O(orderData);
     await order.save();
+    if (body.status === 'paid' && body.customerId) {
+      try {
+        const { Customer: C } = getModels();
+        const pts = Math.floor(Math.max(parseFloat(body.total) || 0, 0) / 1000);
+        if (pts > 0) await C.findByIdAndUpdate(body.customerId, { $inc: { points: pts } });
+      } catch (e) {}
+    }
     res.json(mapOrder(order));
   } catch (e) { res.status(500).json({ error: 'Failed to create order' }); }
 });
@@ -1889,6 +1897,22 @@ app.delete('/api/customers/:id', authMiddleware, adminOrAbove, async (req, res) 
     await C.findByIdAndDelete(req.params.id);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: 'Failed to delete customer' }); }
+});
+
+// === Loyalty Points ===
+app.post('/api/customers/:id/redeem-points', authMiddleware, async (req, res) => {
+  try {
+    const { Customer: C } = getModels();
+    const customer = await C.findById(req.params.id);
+    if (!customer) return res.status(404).json({ error: 'Customer not found' });
+    if (customer.restaurantId !== req.user.restaurantId && req.user.role !== 'super_admin') return res.status(403).json({ error: 'Access denied' });
+    const pts = Math.max(parseInt(req.body.points) || 0, 0);
+    if (pts <= 0) return res.status(400).json({ error: 'Invalid points' });
+    if (customer.points < pts) return res.status(400).json({ error: 'Insufficient points' });
+    customer.points -= pts;
+    await customer.save();
+    res.json({ id: customer._id.toString(), name: customer.name, phone: customer.phone, points: customer.points });
+  } catch (e) { res.status(500).json({ error: 'Failed to redeem points' }); }
 });
 
 module.exports = app;
