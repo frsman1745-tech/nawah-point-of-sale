@@ -9,6 +9,29 @@
       return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
     },
 
+    _previewProductImage(input) {
+      var file = input.files && input.files[0];
+      if (!file) return;
+      if (file.size > 500000) { alert('Image too large (max 500KB)'); return; }
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        var preview = document.getElementById('ds-m-image-preview');
+        var hidden = document.getElementById('ds-m-image');
+        if (hidden) hidden.value = e.target.result;
+        if (preview) preview.innerHTML = '<img src="' + e.target.result + '" style="width:100%;height:100%;object-fit:cover;">';
+      };
+      reader.readAsDataURL(file);
+    },
+
+    _clearProductImage() {
+      var preview = document.getElementById('ds-m-image-preview');
+      var hidden = document.getElementById('ds-m-image');
+      var input = document.getElementById('ds-m-image-input');
+      if (hidden) hidden.value = '';
+      if (preview) preview.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8A8F9B" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';
+      if (input) input.value = '';
+    },
+
     state: {
       orders: [],
       tables: [],
@@ -1441,7 +1464,10 @@
               }
               html += '<div style="background:var(--card,#fff);border:1px solid var(--border,#E5E7EB);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:8px;">';
               html += '<div style="display:flex;justify-content:space-between;align-items:start;">';
-              html += '<div><div style="font-weight:700;font-size:0.9375rem;">' + Admin._escapeHtml(p.name || '--') + '</div>';
+              if (p.image) {
+                html += '<div style="width:48px;height:48px;border-radius:8px;overflow:hidden;flex-shrink:0;margin-left:10px;"><img src="' + p.image + '" style="width:100%;height:100%;object-fit:cover;"></div>';
+              }
+              html += '<div style="flex:1;"><div style="font-weight:700;font-size:0.9375rem;">' + Admin._escapeHtml(p.name || '--') + '</div>';
               if (p.nameEn) html += '<div style="font-size:0.8125rem;color:var(--text-secondary,#6B7280);">' + Admin._escapeHtml(p.nameEn) + '</div>';
               html += '</div>';
               html += '<div style="display:flex;gap:4px;">';
@@ -1719,6 +1745,20 @@
         html += '</select></div>';
         html += '<div class="form-group"><label class="form-label">' + (isAr ? 'ملاحظات' : 'Notes') + '</label>';
         html += '<textarea class="form-input" id="ds-m-notes" rows="2" style="resize:vertical;">' + Admin._escapeHtml(item ? (item.notes || '') : '') + '</textarea></div>';
+        html += '<div class="form-group"><label class="form-label">' + (isAr ? 'صورة المنتج' : 'Product Image') + '</label>';
+        html += '<div style="display:flex;align-items:center;gap:12px;">';
+        html += '<div id="ds-m-image-preview" style="width:80px;height:80px;border-radius:8px;border:2px dashed #334155;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#1a1a2e;">';
+        if (item && item.image) {
+          html += '<img src="' + item.image + '" style="width:100%;height:100%;object-fit:cover;">';
+        } else {
+          html += '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8A8F9B" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';
+        }
+        html += '</div>';
+        html += '<div><input type="file" id="ds-m-image-input" accept="image/*" style="display:none;" onchange="Admin._previewProductImage(this)">';
+        html += '<button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById(\'ds-m-image-input\').click()">' + (isAr ? 'اختر صورة' : 'Choose Image') + '</button>';
+        html += '<button type="button" class="btn btn-ghost btn-sm" onclick="Admin._clearProductImage()" style="color:#ef4444;">' + (isAr ? 'حذف الصورة' : 'Remove') + '</button>';
+        html += '<input type="hidden" id="ds-m-image" value="' + (item ? (item.image || '') : '') + '">';
+        html += '</div></div></div>';
       } else if (type === 'category') {
         title.textContent = item ? (isAr ? 'تعديل فئة' : 'Edit Category') : (isAr ? 'إضافة فئة' : 'Add Category');
         html += '<div class="form-group"><label class="form-label">' + (isAr ? 'اسم الفئة' : 'Category Name') + ' *</label>';
@@ -1814,6 +1854,7 @@
           var barcode = (document.getElementById('ds-m-barcode') || {}).value || '';
           var categoryId = (document.getElementById('ds-m-categoryId') || {}).value || '';
           var notes = (document.getElementById('ds-m-notes') || {}).value || '';
+          var image = (document.getElementById('ds-m-image') || {}).value || '';
           if (!name.trim()) { if (errEl) { errEl.textContent = isAr ? 'اسم المنتج مطلوب' : 'Product name is required'; errEl.classList.remove('hidden'); } return; }
           if (m.editId) {
             var existing = this.state.products.find(function (p) { return p.id === m.editId; });
@@ -1824,14 +1865,15 @@
               existing.barcode = barcode.trim();
               existing.categoryId = categoryId;
               existing.notes = notes.trim();
+              existing.image = image;
               await DB.update(S.PRODUCTS, existing.id, existing);
-              Nawa.Auth.apiFetch('/products/' + existing.id, { method: 'PUT', body: { name: existing.name, nameEn: existing.nameEn, price: existing.price, barcode: existing.barcode, categoryId: existing.categoryId, notes: existing.notes } }).catch(function(){});
+              Nawa.Auth.apiFetch('/products/' + existing.id, { method: 'PUT', body: { name: existing.name, nameEn: existing.nameEn, price: existing.price, barcode: existing.barcode, categoryId: existing.categoryId, notes: existing.notes, image: existing.image } }).catch(function(){});
             }
           } else {
-            var newItem = { id: Date.now().toString(), name: name.trim(), nameEn: nameEn.trim(), price: price, barcode: barcode.trim(), categoryId: categoryId, notes: notes.trim(), active: true, createdAt: new Date().toISOString() };
+            var newItem = { id: Date.now().toString(), name: name.trim(), nameEn: nameEn.trim(), price: price, barcode: barcode.trim(), categoryId: categoryId, notes: notes.trim(), image: image, active: true, createdAt: new Date().toISOString() };
             await DB.add(S.PRODUCTS, newItem);
             this.state.products.push(newItem);
-            Nawa.Auth.apiFetch('/products', { method: 'POST', body: { name: newItem.name, nameEn: newItem.nameEn, price: newItem.price, barcode: newItem.barcode, categoryId: newItem.categoryId, notes: newItem.notes } }).catch(function(){});
+            Nawa.Auth.apiFetch('/products', { method: 'POST', body: { name: newItem.name, nameEn: newItem.nameEn, price: newItem.price, barcode: newItem.barcode, categoryId: newItem.categoryId, notes: newItem.notes, image: newItem.image } }).catch(function(){});
           }
         } else if (m.type === 'category') {
           var name = (document.getElementById('ds-m-name') || {}).value || '';

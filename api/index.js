@@ -175,6 +175,7 @@ const productSchema = new mongoose.Schema({
   barcode: { type: String, trim: true },
   categoryId: { type: String, trim: true },
   notes: { type: String, trim: true },
+  image: { type: String, default: '' },
   active: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now }
 }, commonOpts);
@@ -1364,6 +1365,7 @@ app.post('/api/products', authMiddleware, adminOrAbove, async (req, res) => {
       barcode: sanitizeStr(b.barcode, 100),
       categoryId: sanitizeStr(b.categoryId, 50),
       notes: sanitizeStr(b.notes, 500),
+      image: typeof b.image === 'string' ? b.image.slice(0, 500000) : '',
       active: typeof b.active === 'boolean' ? b.active : true
     });
     await item.save();
@@ -1387,6 +1389,7 @@ app.put('/api/products/:id', authMiddleware, adminOrAbove, async (req, res) => {
     if (b.barcode !== undefined) allowed.barcode = sanitizeStr(b.barcode, 100);
     if (b.categoryId !== undefined) allowed.categoryId = sanitizeStr(b.categoryId, 50);
     if (b.notes !== undefined) allowed.notes = sanitizeStr(b.notes, 500);
+    if (b.image !== undefined) allowed.image = typeof b.image === 'string' ? b.image.slice(0, 500000) : '';
     if (b.active !== undefined && typeof b.active === 'boolean') allowed.active = b.active;
     const updated = await P.findByIdAndUpdate(req.params.id, allowed, { new: true });
     res.json({ ...updated.toObject(), id: updated._id.toString() });
