@@ -57,12 +57,12 @@
       });
     },
 
-    // Cashier login (password only)
-    cashierLogin: function (password) {
+    // Cashier login (username + password)
+    cashierLogin: function (username, password) {
       return fetch(API_BASE + '/auth/cashier-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: password })
+        body: JSON.stringify({ username: username, password: password })
       })
       .then(function (res) {
         if (!res.ok) return res.json().then(function (d) { throw new Error(d.error || 'Login failed'); });

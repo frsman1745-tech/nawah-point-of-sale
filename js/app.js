@@ -280,14 +280,15 @@ const App = {
     if (cashierForm) {
       cashierForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+        const username = document.getElementById('cashierUsername').value.trim();
         const password = document.getElementById('cashierPassword').value;
         const errorEl = document.getElementById('loginError');
-        if (!password) {
+        if (!username || !password) {
           if (errorEl) { errorEl.textContent = Nawa.I18n.t('login_error_fields'); errorEl.classList.remove('hidden'); }
           return;
         }
         try {
-          const user = await Nawa.Auth.cashierLogin(password);
+          const user = await Nawa.Auth.cashierLogin(username, password);
           if (user && user.role) { window.location.hash = '#/pos'; }
         } catch (err) {
           if (errorEl) { errorEl.textContent = err.message || Nawa.I18n.t('login_error'); errorEl.classList.remove('hidden'); }
@@ -572,11 +573,15 @@ const App = {
 
         <div id="loginError" class="hidden" style="color:var(--danger,#ef4444);text-align:center;margin-bottom:12px;font-size:14px;"></div>
 
-        <!-- Cashier: password only -->
+        <!-- Cashier: username + password -->
         <form id="cashierForm" class="login-form">
           <div id="cashierFields">
             <div class="form-group">
-              <label>${isAr ? 'كلمة مرور نقطة البيع' : 'POS Password'}</label>
+              <label>${isAr ? 'اسم المستخدم' : 'Username'}</label>
+              <input type="text" id="cashierUsername" class="form-input" placeholder="${isAr ? 'أدخل اسم المستخدم' : 'Enter username'}" autocomplete="username" dir="ltr">
+            </div>
+            <div class="form-group">
+              <label>${isAr ? 'كلمة المرور' : 'Password'}</label>
               <input type="password" id="cashierPassword" class="form-input" placeholder="${isAr ? 'أدخل كلمة المرور' : 'Enter password'}" autocomplete="current-password" dir="ltr">
             </div>
             <button type="submit" class="btn btn-primary btn-xl w-full">${isAr ? 'دخول' : 'Sign In'}</button>

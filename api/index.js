@@ -157,8 +157,10 @@ const employeeSchema = new mongoose.Schema({
   name: { type: String, trim: true },
   nameEn: { type: String, trim: true },
   username: { type: String, required: true, trim: true },
+  email: { type: String, trim: true, lowercase: true },
   password: { type: String, required: true, select: false },
   role: { type: String, enum: ['admin', 'cashier'], default: 'cashier' },
+  isPrimary: { type: Boolean, default: false },
   isActive: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now }
 }, commonOpts);
@@ -390,14 +392,14 @@ app.post('/api/auth/admin-login', authRateLimit, async (req, res) => {
   }
 });
 
-// --- Auth: Cashier (password only) ---
+// --- Auth: Cashier (username + password) ---
 app.post('/api/auth/cashier-login', authRateLimit, async (req, res) => {
   try {
     const { Employee: E } = getModels();
-    const { password } = req.body;
-    if (!password) return res.status(400).json({ error: 'Password required' });
+    const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
 
-    const employees = await E.find({ isActive: true, role: 'cashier' }).select('+password');
+    const employees = await E.find({ username: username.toLowerCase().trim(), isActive: true }).select('+password');
     let matched = null;
     for (const emp of employees) {
       if (await bcrypt.compare(password, emp.password)) {
@@ -405,7 +407,7 @@ app.post('/api/auth/cashier-login', authRateLimit, async (req, res) => {
         break;
       }
     }
-    if (!matched) return res.status(401).json({ error: 'Invalid password' });
+    if (!matched) return res.status(401).json({ error: 'Invalid username or password' });
 
     const token = jwt.sign({
       id: matched._id.toString(),
@@ -480,7 +482,7 @@ app.post('/api/auth/login', authRateLimit, async (req, res) => {
 });
 
 // === Auth: Change Password (admin/manager only) ===
-app.post('/api/auth/change-password', authMiddleware, async (req, res) => {
+app.post('/api/auth/change-password', authMiddleware, authRateLimit, async (req, res) => {
   try {
     const { Employee: E } = getModels();
     const { oldPassword, newPassword } = req.body;
@@ -581,6 +583,8 @@ app.put('/api/registrations/:id/approve', authMiddleware, superAdminOnly, async 
       username: reg.email.split('@')[0],
       password: reg.password,
       role: 'admin',
+      email: reg.email,
+      isPrimary: true,
       isActive: true
     });
     await adminEmployee.save();
@@ -666,6 +670,8 @@ app.post('/api/admin/create-restaurant', authMiddleware, superAdminOnly, async (
       username: email.toLowerCase().trim().split('@')[0],
       password: hashedPassword,
       role: 'admin',
+      email: email.toLowerCase().trim(),
+      isPrimary: true,
       isActive: true
     });
     await adminEmployee.save();
@@ -673,8 +679,7 @@ app.post('/api/admin/create-restaurant', authMiddleware, superAdminOnly, async (
     res.json({
       ok: true,
       restaurant: { id: restaurant._id.toString(), name: restaurant.name },
-      registration: { id: registration._id.toString() },
-      password: password
+      registration: { id: registration._id.toString() }
     });
   } catch (e) {
     console.error('Create restaurant error:', e);
@@ -687,7 +692,7 @@ app.get('/api/restaurants', authMiddleware, superAdminOnly, async (req, res) => 
   try {
     const { Restaurant: R } = getModels();
     const restaurants = await R.find().select('+password').sort({ createdAt: -1 }).lean();
-    res.json(restaurants.map(r => ({ ...r, id: r._id.toString() })));
+    res.json(restaurants.map(r => { const { password, ...rest } = r; return { ...rest, id: r._id.toString() }; }));
   } catch (e) { res.status(500).json({ error: 'Failed to fetch restaurants' }); }
 });
 
@@ -1063,7 +1068,7 @@ app.get('/api/audit', authMiddleware, async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Failed to fetch audit logs' }); }
 });
 
-app.post('/api/audit', authMiddleware, async (req, res) => {
+app.post('/api/audit', authMiddleware, adminOrAbove, async (req, res) => {
   try {
     const { AuditLog: AL } = getModels();
     const b = req.body;
@@ -1127,7 +1132,7 @@ app.get('/api/employees', authMiddleware, async (req, res) => {
 
 app.post('/api/employees', authMiddleware, adminOrAbove, async (req, res) => {
   try {
-    const { Employee: E } = getModels();
+    const { Employee: E, Restaurant: R } = getModels();
 
     if (!req.user.restaurantId) return res.status(403).json({ error: 'No restaurant associated' });
 
@@ -1143,6 +1148,20 @@ app.post('/api/employees', authMiddleware, adminOrAbove, async (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 4 characters' });
     }
 
+    const role = ['admin', 'cashier'].includes(b.role) ? b.role : 'cashier';
+
+    // Enforce plan-based manager limits
+    if (role === 'admin' && req.user.role !== 'super_admin') {
+      const restaurant = await R.findById(req.user.restaurantId);
+      if (!restaurant) return res.status(404).json({ error: 'Restaurant not found' });
+      const planLimits = { basic: 1, medium: 2, advanced: 3 };
+      const maxAdmins = planLimits[restaurant.plan] || 1;
+      const currentAdminCount = await E.countDocuments({ restaurantId: req.user.restaurantId, role: 'admin' });
+      if (currentAdminCount >= maxAdmins) {
+        return res.status(403).json({ error: 'Plan limit reached for managers. Upgrade your plan to add more.' });
+      }
+    }
+
     const hashed = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
     const employee = new E({
@@ -1150,8 +1169,10 @@ app.post('/api/employees', authMiddleware, adminOrAbove, async (req, res) => {
       name: name,
       nameEn: sanitizeStr(b.nameEn, 100),
       username: username,
+      email: b.email ? sanitizeStr(b.email, 100) : undefined,
       password: hashed,
-      role: ['admin', 'cashier'].includes(b.role) ? b.role : 'cashier',
+      role: role,
+      isPrimary: false,
       isActive: true
     });
     await employee.save();
@@ -1174,11 +1195,19 @@ app.put('/api/employees/:id', authMiddleware, adminOrAbove, async (req, res) => 
       return res.status(403).json({ error: 'Access denied' });
     }
 
+    // Prevent admin from toggling/disabling the primary admin
+    if (employee.isPrimary && req.user.role !== 'super_admin') {
+      if (req.body.isActive !== undefined && req.body.isActive !== employee.isActive) {
+        return res.status(403).json({ error: 'Cannot disable the primary administrator' });
+      }
+    }
+
     const b = req.body;
     const allowed = {};
     if (b.name !== undefined) allowed.name = sanitizeStr(b.name, 100);
     if (b.nameEn !== undefined) allowed.nameEn = sanitizeStr(b.nameEn, 100);
     if (b.username !== undefined) allowed.username = sanitizeStr(b.username, 50);
+    if (b.email !== undefined) allowed.email = sanitizeStr(b.email, 100);
     if (b.role !== undefined && req.user.role === 'super_admin' && ['admin', 'cashier'].includes(b.role)) {
       allowed.role = b.role;
     }
@@ -1209,9 +1238,59 @@ app.delete('/api/employees/:id', authMiddleware, adminOrAbove, async (req, res) 
       return res.status(403).json({ error: 'Access denied' });
     }
 
+    // Prevent deleting the primary admin
+    if (employee.isPrimary && req.user.role !== 'super_admin') {
+      return res.status(403).json({ error: 'Cannot delete the primary administrator' });
+    }
+
     await E.findByIdAndDelete(req.params.id);
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: 'Failed to delete employee' }); }
+});
+
+// === Admin: Get own restaurant info ===
+app.get('/api/restaurant', authMiddleware, async (req, res) => {
+  try {
+    const { Restaurant: R } = getModels();
+    if (!req.user.restaurantId) return res.status(400).json({ error: 'No restaurant' });
+    const restaurant = await R.findById(req.user.restaurantId).lean();
+    if (!restaurant) return res.status(404).json({ error: 'Restaurant not found' });
+    res.json({ id: restaurant._id.toString(), name: restaurant.name, plan: restaurant.plan || 'basic', status: restaurant.status });
+  } catch (e) { res.status(500).json({ error: 'Failed to fetch restaurant info' }); }
+});
+
+// === Super Admin: Impersonate restaurant admin ===
+app.post('/api/admin/restaurant/:id/impersonate', authMiddleware, superAdminOnly, async (req, res) => {
+  try {
+    const { Restaurant: R, Registration: Reg } = getModels();
+    const restaurant = await R.findById(req.params.id).lean();
+    if (!restaurant) return res.status(404).json({ error: 'Restaurant not found' });
+
+    const reg = await Reg.findOne({ email: restaurant.email, status: 'approved' }).lean();
+    if (!reg) return res.status(404).json({ error: 'Registration not found' });
+
+    const token = jwt.sign({
+      id: reg._id.toString(),
+      email: reg.email,
+      name: reg.ownerName,
+      restaurantId: restaurant._id.toString(),
+      role: 'admin'
+    }, JWT_SECRET, { expiresIn: '24h' });
+
+    res.json({
+      token,
+      user: {
+        id: reg._id.toString(),
+        email: reg.email,
+        name: reg.ownerName,
+        restaurantId: restaurant._id.toString(),
+        role: 'admin'
+      }
+    });
+  } catch (e) {
+    console.error('Impersonate error:', e);
+    res.status(500).json({ error: 'Failed to impersonate' });
+  }
 });
 
 app.get('/api/products', authMiddleware, async (req, res) => {
@@ -1563,6 +1642,7 @@ app.get('/api/customers/:id', authMiddleware, async (req, res) => {
     const { Customer: C, Order: O } = getModels();
     const customer = await C.findById(req.params.id).lean();
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
+    if (customer.restaurantId !== req.user.restaurantId && req.user.role !== 'super_admin') return res.status(403).json({ error: 'Access denied' });
 
     const orderFilter = { cid: req.params.id };
     if (req.user.restaurantId) orderFilter.restaurantId = req.user.restaurantId;
@@ -1613,7 +1693,7 @@ app.post('/api/customers', authMiddleware, async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Failed to create customer' }); }
 });
 
-app.put('/api/customers/:id', authMiddleware, async (req, res) => {
+app.put('/api/customers/:id', authMiddleware, adminOrAbove, async (req, res) => {
   try {
     const { Customer: C } = getModels();
     const customer = await C.findById(req.params.id);
@@ -1633,7 +1713,7 @@ app.put('/api/customers/:id', authMiddleware, async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Failed to update customer' }); }
 });
 
-app.delete('/api/customers/:id', authMiddleware, async (req, res) => {
+app.delete('/api/customers/:id', authMiddleware, adminOrAbove, async (req, res) => {
   try {
     const { Customer: C } = getModels();
     const customer = await C.findById(req.params.id);

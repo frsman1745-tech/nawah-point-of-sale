@@ -396,9 +396,6 @@ Nawa.SuperAdmin = {
                         <button class="sa-btn sa-btn-outline sa-btn-sm" data-detail="${r.id}" title="التفاصيل">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
                         </button>
-                        ${r.status === 'active' ?
-                          `<button class="sa-btn sa-btn-warning sa-btn-sm" data-action="suspend" data-id="${r.id}" title="تعليق">تعليق</button>` :
-                          `<button class="sa-btn sa-btn-success sa-btn-sm" data-action="activate" data-id="${r.id}" title="تشغيل">تشغيل</button>`}
                         <button class="sa-btn sa-btn-danger sa-btn-sm" data-action="delete" data-id="${r.id}" title="حذف">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                           حذف
@@ -490,15 +487,6 @@ Nawa.SuperAdmin = {
                 <div class="sa-detail-field-label">البريد الإلكتروني</div>
                 <div class="sa-detail-field-value" style="direction:ltr;text-align:right;">${restaurant.email || '—'}</div>
               </div>
-              <div class="sa-detail-field" style="grid-column:1/-1;">
-                <div class="sa-detail-field-label">كلمة المرور</div>
-                <div class="sa-detail-field-value" style="direction:ltr;text-align:right;display:flex;align-items:center;gap:8px;">
-                  <span id="saDetailPassword" style="font-family:monospace;">••••••••</span>
-                  <button class="sa-btn sa-btn-ghost" id="saTogglePassword" style="padding:2px 6px;font-size:0.75rem;">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -574,13 +562,24 @@ Nawa.SuperAdmin = {
     const loginAsBtn = modalRoot.querySelector('[data-login-as]');
     if (loginAsBtn) {
       loginAsBtn.addEventListener('click', async () => {
-        const pwd = restaurant.password || this._passwordCache[restaurant.id];
-        if (!restaurant.email || !pwd) {
-          this.showNotification('لا يوجد بيانات تسجيل دخول لهذا المطعم', 'error');
+        if (!restaurant.email) {
+          this.showNotification('لا يوجد بريد إلكتروني لهذا المطعم', 'error');
           return;
         }
         try {
-          await Nawa.Auth.adminLogin(restaurant.email, pwd);
+          const session = JSON.parse(localStorage.getItem('nawa_session') || '{}');
+          const res = await fetch(Nawa.CONFIG.API_BASE + '/admin/restaurant/' + restaurant.id + '/impersonate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (session.token || '') }
+          });
+          if (!res.ok) throw new Error('Impersonate failed');
+          const data = await res.json();
+          localStorage.setItem('nawa_session', JSON.stringify({
+            ...data.user,
+            token: data.token,
+            loginAt: new Date().toISOString(),
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          }));
           window.location.hash = '#/admin';
         } catch (e) {
           this.showNotification('فشل تسجيل الدخول', 'error');
@@ -588,18 +587,6 @@ Nawa.SuperAdmin = {
       });
     }
 
-    const togglePwdBtn = document.getElementById('saTogglePassword');
-    const pwdSpan = document.getElementById('saDetailPassword');
-    if (togglePwdBtn && pwdSpan) {
-      togglePwdBtn.addEventListener('click', () => {
-        const pwd = restaurant.password || this._passwordCache[restaurant.id] || '—';
-        if (pwdSpan.textContent === '••••••••') {
-          pwdSpan.textContent = pwd;
-        } else {
-          pwdSpan.textContent = '••••••••';
-        }
-      });
-    }
   },
 
   closeDetail() {
