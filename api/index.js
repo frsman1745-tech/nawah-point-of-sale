@@ -184,7 +184,9 @@ const productSchema = new mongoose.Schema({
   notes: { type: String, trim: true },
   image: { type: String, default: '' },
   active: { type: Boolean, default: true },
+  available: { type: Boolean, default: true },
   variants: { type: [productVariantSchema], default: [] },
+  prices: { type: Object, default: {} },
   createdAt: { type: Date, default: Date.now }
 }, commonOpts);
 
@@ -340,6 +342,8 @@ function mapOrder(o) {
     change: obj.chg,
     paymentMethod: obj.m,
     status: 'paid',
+    pricelistId: obj.pricelistId || null,
+    pricelistName: obj.pricelistName || null,
     createdAt: obj.createdAt
   };
 }
@@ -1028,7 +1032,9 @@ app.post('/api/orders', authMiddleware, async (req, res) => {
       discType: body.discountType || null,
       discVal: Math.max(parseFloat(body.discountValue) || 0, 0),
       discAmt: Math.max(parseFloat(body.discountAmount) || 0, 0),
-      discName: sanitizeStr(body.discountName, 100)
+      discName: sanitizeStr(body.discountName, 100),
+      pricelistId: sanitizeStr(body.pricelistId, 50),
+      pricelistName: sanitizeStr(body.pricelistName, 100)
     };
     const order = new O(orderData);
     await order.save();
@@ -1416,7 +1422,9 @@ app.post('/api/products', authMiddleware, adminOrAbove, async (req, res) => {
       notes: sanitizeStr(b.notes, 500),
       image: typeof b.image === 'string' ? b.image.slice(0, 500000) : '',
       active: typeof b.active === 'boolean' ? b.active : true,
-      variants: variants
+      available: typeof b.available === 'boolean' ? b.available : true,
+      variants: variants,
+      prices: (b.prices && typeof b.prices === 'object') ? b.prices : {}
     });
     await item.save();
     res.json({ ...item.toObject(), id: item._id.toString() });
@@ -1441,10 +1449,14 @@ app.put('/api/products/:id', authMiddleware, adminOrAbove, async (req, res) => {
     if (b.notes !== undefined) allowed.notes = sanitizeStr(b.notes, 500);
     if (b.image !== undefined) allowed.image = typeof b.image === 'string' ? b.image.slice(0, 500000) : '';
     if (b.active !== undefined && typeof b.active === 'boolean') allowed.active = b.active;
+    if (b.available !== undefined && typeof b.available === 'boolean') allowed.available = b.available;
     if (b.variants !== undefined) {
       allowed.variants = Array.isArray(b.variants) ? b.variants.slice(0, 50).map(function(v) {
         return { name: sanitizeStr(v.name, 100), price: typeof v.price === 'number' ? v.price : 0, barcode: sanitizeStr(v.barcode, 100), active: typeof v.active === 'boolean' ? v.active : true };
-      }) : [];
+        }) : [];
+    }
+    if (b.prices !== undefined && b.prices && typeof b.prices === 'object') {
+      allowed.prices = b.prices;
     }
     const updated = await P.findByIdAndUpdate(req.params.id, allowed, { new: true });
     res.json({ ...updated.toObject(), id: updated._id.toString() });

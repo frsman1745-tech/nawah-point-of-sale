@@ -1803,6 +1803,14 @@ body[dir="ltr"] .admin-mobile-toggle {
   box-shadow: 0 0 0 2px rgba(14, 28, 61, 0.1);
 }
 
+/* ── Pricelists Manager ── */
+.pricelist-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.pricelist-row .form-input { border-color: var(--border, #E5E7EB); }
+.pricelist-default-badge {
+  font-size: 0.7rem; font-weight: 600; color: #C9A84C; border: 1px solid #C9A84C;
+  padding: 3px 10px; border-radius: 999px; background: rgba(201, 168, 76, 0.08);
+}
+
 /* ── Product Card Variants Badge ── */
 .admin-variant-badge {
   display: inline-flex;

@@ -524,7 +524,21 @@
     add_variant: { ar: 'إضافة مقاس', en: 'Add Variant' },
     variant_name: { ar: 'اسم المقاس', en: 'Variant Name' },
     variant_price: { ar: 'سعر المقاس', en: 'Variant Price' },
-    no_variants: { ar: 'بدون مقاسات', en: 'No variants' }
+    no_variants: { ar: 'بدون مقاسات', en: 'No variants' },
+
+    // ── Availability ──
+    out_of_stock: { ar: 'غير متوفر', en: 'Out of stock' },
+    available_for_sale: { ar: 'متاح للبيع', en: 'Available for sale' },
+
+    // ── Pricelists ──
+    pricelists: { ar: 'قوائم الأسعار', en: 'Pricelists' },
+    pricelist_name: { ar: 'اسم قائمة الأسعار', en: 'Pricelist name' },
+    add_pricelist: { ar: 'إضافة قائمة أسعار', en: 'Add Pricelist' },
+    default_label: { ar: 'افتراضي', en: 'Default' },
+    order_type: { ar: 'نوع الطلب', en: 'Order Type' },
+    dine_in: { ar: 'داخل المطعم', en: 'Dine In' },
+    price_per_pricelist: { ar: 'الأسعار حسب القائمة', en: 'Prices per pricelist' },
+    pricelist_remove: { ar: 'إزالة', en: 'Remove' }
   };
 
   function setDirection(lang) {

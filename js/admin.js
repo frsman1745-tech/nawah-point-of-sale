@@ -1844,6 +1844,11 @@
         html += '<div class="form-group" style="flex:1"><label class="form-label">' + (isAr ? 'الباركود' : 'Barcode') + '</label>';
         html += '<input type="text" class="form-input" id="ds-m-barcode" value="' + Admin._escapeHtml(item ? (item.barcode || '') : '') + '"></div>';
         html += '</div>';
+        html += '<div class="form-group"><label class="form-label">' + (isAr ? 'حالة التوفر' : 'Availability') + '</label>';
+        html += '<div style="display:flex;align-items:center;gap:10px;">';
+        html += '<label class="admin-toggle"><input type="checkbox" id="ds-m-available"' + ((!item || item.available !== false) ? ' checked' : '') + '><span class="admin-toggle-slider"></span></label>';
+        html += '<span style="font-size:0.8125rem;color:var(--text-secondary);">' + (isAr ? 'متاح للبيع (إلغاء التحديد = غير متوفر)' : 'Available for sale (uncheck = out of stock)') + '</span>';
+        html += '</div></div>';
         html += '<div class="form-group"><label class="form-label">' + (isAr ? 'الفئة' : 'Category') + '</label>';
         html += '<select class="form-input" id="ds-m-categoryId"><option value="">' + (isAr ? '-- بدون فئة --' : '-- None --') + '</option>';
         cats.forEach(function (c) {
@@ -1882,6 +1887,22 @@
         html += '</div>';
         html += '<button type="button" class="btn btn-ghost btn-sm" onclick="Admin._addVariantRow()" style="display:flex;align-items:center;gap:4px;font-size:0.8125rem;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> ' + (isAr ? 'إضافة مقاس' : 'Add Variant') + '</button>';
         html += '</div>';
+
+        // Pricelist prices
+        var pls2 = (this.state.settings && this.state.settings.pricelists) || [];
+        if (pls2.length > 0) {
+          var prodPrices = (item && item.prices) ? item.prices : {};
+          html += '<div class="form-group"><label class="form-label">' + (isAr ? 'الأسعار حسب القائمة' : 'Prices per pricelist') + '</label>';
+          html += '<div style="background:var(--bg-secondary);padding:10px;border-radius:8px;">';
+          pls2.forEach(function (pl) {
+            var pv = (prodPrices[pl.id] != null) ? prodPrices[pl.id] : (item ? item.price : 0);
+            html += '<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">';
+            html += '<span style="flex:1;font-size:0.8125rem;">' + Admin._escapeHtml(pl.name) + (pl.id === 'default' ? ' (' + (isAr ? 'افتراضي' : 'default') + ')' : '') + '</span>';
+            html += '<input type="number" class="form-input" data-pl-price="' + pl.id + '" value="' + pv + '" min="0" step="100" style="flex:1;">';
+            html += '</div>';
+          });
+          html += '</div></div>';
+        }
       } else if (type === 'category') {
         title.textContent = item ? (isAr ? 'تعديل فئة' : 'Edit Category') : (isAr ? 'إضافة فئة' : 'Add Category');
         html += '<div class="form-group"><label class="form-label">' + (isAr ? 'اسم الفئة' : 'Category Name') + ' *</label>';
@@ -1978,6 +1999,8 @@
           var categoryId = (document.getElementById('ds-m-categoryId') || {}).value || '';
           var notes = (document.getElementById('ds-m-notes') || {}).value || '';
           var image = (document.getElementById('ds-m-image') || {}).value || '';
+          var availableEl = (document.getElementById('ds-m-available') || {});
+          var available = availableEl ? availableEl.checked : true;
           var variantRows = document.querySelectorAll('#ds-m-variants-list .ds-variant-row');
           var variants = [];
           variantRows.forEach(function(row) {
@@ -1985,6 +2008,12 @@
             var vPrice = parseFloat((row.querySelector('.ds-m-variant-price') || {}).value) || 0;
             var vBarcode = (row.querySelector('.ds-m-variant-barcode') || {}).value || '';
             if (vName.trim()) variants.push({ name: vName.trim(), price: vPrice, barcode: vBarcode.trim(), active: true });
+          });
+          var pls2 = (this.state.settings && this.state.settings.pricelists) || [];
+          var prices = {};
+          pls2.forEach(function (pl) {
+            var inp = document.querySelector('[data-pl-price="' + pl.id + '"]');
+            if (inp) { var v = parseFloat(inp.value); prices[pl.id] = isNaN(v) ? 0 : v; }
           });
           if (!name.trim()) { if (errEl) { errEl.textContent = isAr ? 'اسم المنتج مطلوب' : 'Product name is required'; errEl.classList.remove('hidden'); } return; }
           if (m.editId) {
@@ -1997,15 +2026,17 @@
               existing.categoryId = categoryId;
               existing.notes = notes.trim();
               existing.image = image;
+              existing.available = available;
               existing.variants = variants;
+              existing.prices = prices;
               await DB.update(S.PRODUCTS, existing.id, existing);
-              Nawa.Auth.apiFetch('/products/' + existing.id, { method: 'PUT', body: { name: existing.name, nameEn: existing.nameEn, price: existing.price, barcode: existing.barcode, categoryId: existing.categoryId, notes: existing.notes, image: existing.image, variants: existing.variants } }).catch(function(){});
+              Nawa.Auth.apiFetch('/products/' + existing.id, { method: 'PUT', body: { name: existing.name, nameEn: existing.nameEn, price: existing.price, barcode: existing.barcode, categoryId: existing.categoryId, notes: existing.notes, image: existing.image, available: existing.available, variants: existing.variants, prices: existing.prices } }).catch(function(){});
             }
           } else {
-            var newItem = { id: Date.now().toString(), name: name.trim(), nameEn: nameEn.trim(), price: price, barcode: barcode.trim(), categoryId: categoryId, notes: notes.trim(), image: image, active: true, variants: variants, createdAt: new Date().toISOString() };
+            var newItem = { id: Date.now().toString(), name: name.trim(), nameEn: nameEn.trim(), price: price, barcode: barcode.trim(), categoryId: categoryId, notes: notes.trim(), image: image, active: true, available: available, variants: variants, prices: prices, createdAt: new Date().toISOString() };
             await DB.add(S.PRODUCTS, newItem);
             this.state.products.push(newItem);
-            Nawa.Auth.apiFetch('/products', { method: 'POST', body: { name: newItem.name, nameEn: newItem.nameEn, price: newItem.price, barcode: newItem.barcode, categoryId: newItem.categoryId, notes: newItem.notes, image: newItem.image, variants: newItem.variants } }).catch(function(){});
+            Nawa.Auth.apiFetch('/products', { method: 'POST', body: { name: newItem.name, nameEn: newItem.nameEn, price: newItem.price, barcode: newItem.barcode, categoryId: newItem.categoryId, notes: newItem.notes, image: newItem.image, available: newItem.available, variants: newItem.variants, prices: newItem.prices } }).catch(function(){});
           }
         } else if (m.type === 'category') {
           var name = (document.getElementById('ds-m-name') || {}).value || '';
@@ -2191,6 +2222,28 @@
       html += '<div class="form-group" style="max-width:120px"><input type="number" class="form-input" id="setting-sync-interval" value="' + (st.syncInterval || Math.round(CFG.SYNC_INTERVAL / 1000)) + '" min="30"></div>';
       html += '</div>';
 
+      html += '</div></div>';
+
+      // Pricelists manager
+      var pls = st.pricelists || [];
+      if (pls.length === 0) pls = [{ id: 'default', name: (isAr ? 'القائمة الأساسية' : 'Default Menu') }];
+      html += '<div class="admin-settings-card">';
+      html += '<div class="admin-settings-card-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> ' + t('pricelists') + '</div>';
+      html += '<div class="admin-settings-card-body">';
+      html += '<div class="admin-settings-label-desc" style="margin-bottom:8px;">' + (isAr ? 'أنشئ قوائم أسعار مختلفة (مثل: داخل المطعم، استلام، توصيل) وحدد سعرًا لكل منتج في كل قائمة.' : 'Create different price lists (e.g. Dine-in, Takeaway, Delivery) and set a price per product in each.') + '</div>';
+      html += '<div id="pricelists-list">';
+      pls.forEach(function (pl, i) {
+        html += '<div class="pricelist-row" data-pl-idx="' + i + '">';
+        html += '<input type="text" class="form-input pricelist-name-input" data-pl-id="' + pl.id + '" value="' + Admin._escapeHtml(pl.name || '') + '" placeholder="' + t('pricelist_name') + '" style="flex:1;">';
+        if (i === 0) {
+          html += '<span class="pricelist-default-badge">' + t('default_label') + '</span>';
+        } else {
+          html += '<button type="button" class="btn btn-ghost btn-sm pricelist-remove" data-pl-id="' + pl.id + '" title="' + t('pricelist_remove') + '" style="color:#ef4444;padding:4px 8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>';
+        }
+        html += '</div>';
+      });
+      html += '</div>';
+      html += '<button type="button" class="btn btn-outline btn-sm" id="add-pricelist-btn" style="margin-top:8px;">+ ' + t('add_pricelist') + '</button>';
       html += '</div></div>';
 
       html += '<div class="admin-settings-card">';
@@ -2585,6 +2638,17 @@
       var closeTimeEl = document.getElementById('setting-close-time');
       var minOrderEl = document.getElementById('setting-min-order');
 
+      var plRows = document.querySelectorAll('#pricelists-list .pricelist-row');
+      var pricelists = [];
+      plRows.forEach(function (row) {
+        var inp = row.querySelector('.pricelist-name-input');
+        if (!inp) return;
+        var id = inp.dataset.plId;
+        var nm = inp.value.trim();
+        if (nm) pricelists.push({ id: id, name: nm });
+      });
+      if (pricelists.length === 0) pricelists = [{ id: 'default', name: (Nawa.I18n.getLang() === 'ar' ? 'القائمة الأساسية' : 'Default Menu') }];
+
       var settingsToSave = [
         { key: 'taxRate', value: (taxEl ? taxEl.value : '0') || '0' },
         { key: 'receiptHeader', value: (receiptEl ? receiptEl.value : '') || CFG.COMPANY_NAME },
@@ -2597,7 +2661,8 @@
         { key: 'receiptFooter', value: receiptFooterEl ? receiptFooterEl.value : '' },
         { key: 'openTime', value: openTimeEl ? openTimeEl.value : '09:00' },
         { key: 'closeTime', value: closeTimeEl ? closeTimeEl.value : '23:00' },
-        { key: 'minOrder', value: minOrderEl ? minOrderEl.value : '0' }
+        { key: 'minOrder', value: minOrderEl ? minOrderEl.value : '0' },
+        { key: 'pricelists', value: pricelists }
       ];
 
       var self = this;
@@ -3070,6 +3135,27 @@
         if (exportCustomersBtn) {
           exportCustomersBtn.addEventListener('click', function () { self._exportCSV('customers', 'customers.csv'); });
         }
+
+        var addPlBtn = document.getElementById('add-pricelist-btn');
+        if (addPlBtn) {
+          addPlBtn.addEventListener('click', function () {
+            var list = document.getElementById('pricelists-list');
+            if (!list) return;
+            var newId = 'pl_' + Date.now();
+            var row = document.createElement('div');
+            row.className = 'pricelist-row';
+            row.setAttribute('data-pl-idx', String(list.children.length));
+            row.innerHTML = '<input type="text" class="form-input pricelist-name-input" data-pl-id="' + newId + '" placeholder="' + Nawa.I18n.t('pricelist_name') + '" style="flex:1;">' +
+              '<button type="button" class="btn btn-ghost btn-sm pricelist-remove" data-pl-id="' + newId + '" title="' + Nawa.I18n.t('pricelist_remove') + '" style="color:#ef4444;padding:4px 8px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>';
+            list.appendChild(row);
+          });
+        }
+        document.querySelectorAll('.pricelist-remove').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var row = btn.closest('.pricelist-row');
+            if (row && row.parentNode) row.parentNode.removeChild(row);
+          });
+        });
       }
 
       if (this.state.activeTab === 'dashboard-settings') {

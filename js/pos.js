@@ -22,7 +22,8 @@ Nawa.POS = {
     splitPaid: 0,
     currentCustomer: null,
     discount: null,
-    discountPresets: []
+    discountPresets: [],
+    activePricelistId: null
   },
 
   TAX_RATE: 0,
@@ -167,7 +168,7 @@ Nawa.POS = {
         var serverProducts = await res.json();
         if (serverProducts.length > 0) {
           self.state.products = serverProducts.map(function (p) {
-            return { id: p.id, name: p.name, nameEn: p.nameEn, price: p.price, barcode: p.barcode, categoryId: p.categoryId, notes: p.notes, active: p.active, variants: p.variants || [] };
+            return { id: p.id, name: p.name, nameEn: p.nameEn, price: p.price, barcode: p.barcode, categoryId: p.categoryId, notes: p.notes, active: p.active, available: p.available !== false, prices: p.prices || {}, variants: p.variants || [] };
           });
           await DB.clear(S.PRODUCTS);
           for (var i = 0; i < self.state.products.length; i++) {
@@ -433,6 +434,7 @@ Nawa.POS = {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
             <span>${Nawa.I18n.t('kitchen_display')}</span>
           </button>
+          ${this.renderPricelistSelector()}
         </div>
         <div class="pos-header-left">
           <span class="pos-employee-name">
@@ -476,7 +478,7 @@ Nawa.POS = {
         var product = products.find(function (p) { return String(p.id) === String(sorted[k]); });
         if (!product) continue;
         var name = Nawa.I18n.getLang() === 'ar' ? (product.name || product.nameEn) : (product.nameEn || product.name);
-        buttons.push('<button class="pos-quickfire-btn" data-product-id="' + product.id + '" style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg-secondary);cursor:pointer;min-width:90px;gap:4px;"><span style="font-size:0.8125rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100px;">' + this._escapeHtml(name) + '</span><span style="font-size:0.75rem;color:var(--text-secondary);">' + this.formatPrice(product.price) + '</span></button>');
+        buttons.push('<button class="pos-quickfire-btn" data-product-id="' + product.id + '" style="flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg-secondary);cursor:pointer;min-width:90px;gap:4px;"><span style="font-size:0.8125rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100px;">' + this._escapeHtml(name) + '</span><span style="font-size:0.75rem;color:var(--text-secondary);">' + this.formatPrice(this.getEffectivePrice(product)) + '</span></button>');
       }
       if (buttons.length > 0) {
         html = '<div style="padding:4px 0;"><div style="font-size:0.75rem;font-weight:600;color:var(--text-secondary);padding:0 12px 4px;">' + Nawa.I18n.t('quick_fire') + '</div><div style="display:flex;gap:8px;overflow-x:auto;padding:0 12px 8px;">' + buttons.join('') + '</div></div>';
@@ -525,14 +527,18 @@ Nawa.POS = {
       const variantBadge = (product.variants && product.variants.length > 0)
         ? '<span class="pos-product-variant-badge">' + product.variants.length + ' ' + (Nawa.I18n.getLang() === 'ar' ? 'مقاسات' : 'sizes') + '</span>'
         : '';
+      const unavailable = product.available === false;
+      const effPrice = this.getEffectivePrice(product);
+      const outBadge = unavailable ? '<span class="pos-product-out-badge">' + Nawa.I18n.t('out_of_stock') + '</span>' : '';
+      const cardClass = 'pos-product-card' + (unavailable ? ' pos-product-unavailable' : '');
 
       return `
-        <div class="pos-product-card" data-product-id="${product.id}">
-          <div class="pos-product-thumb">${display}</div>
+        <div class="${cardClass}" data-product-id="${product.id}">
+          <div class="pos-product-thumb">${display}${unavailable ? '<span class="pos-product-unavailable-overlay">' + Nawa.I18n.t('out_of_stock') + '</span>' : ''}</div>
           <div class="pos-product-info">
             <span class="pos-product-name">${this._escapeHtml(name)}</span>
-            ${variantBadge}
-            <span class="pos-product-price">${this.formatPrice(product.price)}</span>
+            ${variantBadge}${outBadge}
+            <span class="pos-product-price">${this.formatPrice(effPrice)}</span>
           </div>
         </div>`;
     }).join('');
@@ -777,7 +783,8 @@ Nawa.POS = {
   addToCart(product, variant) {
     var vName = variant ? variant.name : '';
     var vPrice = variant ? (variant.price || 0) : 0;
-    var finalPrice = variant ? (vPrice > 0 ? vPrice : product.price || 0) : (product.price || 0);
+    var basePrice = this.getEffectivePrice(product);
+    var finalPrice = variant ? (vPrice > 0 ? vPrice : basePrice) : basePrice;
     var vBarcode = variant ? (variant.barcode || '') : '';
     var cartKey = product.id + (vName ? '_' + vName : '');
     const existing = this.state.cart.find(item => item.cartKey === cartKey);
@@ -1054,6 +1061,55 @@ Nawa.POS = {
     return { subtotal, tax, total, discountAmount };
   },
 
+  getActivePricelistId() {
+    var pls = (this.state.settings && this.state.settings.pricelists) || [];
+    if (pls.length === 0) return 'default';
+    if (!this.state.activePricelistId) this.state.activePricelistId = pls[0].id;
+    return this.state.activePricelistId || pls[0].id;
+  },
+
+  getActivePricelistName() {
+    var id = this.getActivePricelistId();
+    var pls = (this.state.settings && this.state.settings.pricelists) || [];
+    var found = pls.find(function (p) { return p.id === id; });
+    return found ? found.name : '';
+  },
+
+  getEffectivePrice(product) {
+    if (!product) return 0;
+    var id = this.getActivePricelistId();
+    if (product.prices && product.prices[id] != null && !isNaN(product.prices[id])) return product.prices[id];
+    return product.price || 0;
+  },
+
+  renderPricelistSelector() {
+    var pls = (this.state.settings && this.state.settings.pricelists) || [];
+    if (!pls || pls.length < 2) return '';
+    var active = this.getActivePricelistId();
+    var isAr = Nawa.I18n.getLang() === 'ar';
+    var btns = pls.map(function (pl) {
+      var cls = (pl.id === active) ? 'pos-pricelist-btn active' : 'pos-pricelist-btn';
+      var lbl = pl.name || 'PL';
+      return '<button class="' + cls + '" data-pricelist-id="' + pl.id + '" type="button" title="' + Nawa.I18n.t('order_type') + '">' + Nawa.POS._escapeHtml(lbl) + '</button>';
+    }).join('');
+    return '<div class="pos-pricelist-selector"><span class="pos-pricelist-label">' + Nawa.I18n.t('order_type') + '</span>' + btns + '</div>';
+  },
+
+  _repriceCartForPricelist() {
+    var self = this;
+    this.state.cart.forEach(function (item) {
+      var product = self.state.products.find(function (p) { return String(p.id) === String(item.productId); });
+      if (!product) return;
+      if (item.variantName) {
+        var v = (product.variants || []).find(function (x) { return x.name === item.variantName; });
+        item.price = (v && v.price > 0) ? v.price : self.getEffectivePrice(product);
+      } else {
+        item.price = self.getEffectivePrice(product);
+      }
+      item.subtotal = item.price * item.quantity;
+    });
+  },
+
   // ===========================
   // ORDER OPERATIONS
   // ===========================
@@ -1077,6 +1133,8 @@ Nawa.POS = {
       customerId: this.state.currentCustomer ? this.state.currentCustomer.id : null,
       customerName: this.state.currentCustomer ? this.state.currentCustomer.name : null,
       status: 'held',
+      pricelistId: this.getActivePricelistId(),
+      pricelistName: this.getActivePricelistName(),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -1427,6 +1485,8 @@ Nawa.POS = {
           customerId: this.state.currentCustomer ? this.state.currentCustomer.id : null,
           customerName: this.state.currentCustomer ? this.state.currentCustomer.name : null,
           status: 'paid',
+          pricelistId: this.getActivePricelistId(),
+          pricelistName: this.getActivePricelistName(),
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
@@ -1724,11 +1784,21 @@ Nawa.POS = {
       }
       if (!target) return;
 
+      // Pricelist selector
+      const plBtn = target.closest('[data-pricelist-id]');
+      if (plBtn) {
+        this.state.activePricelistId = plBtn.dataset.pricelistId;
+        this._repriceCartForPricelist();
+        this.render();
+        return;
+      }
+
       // Quick-fire button
       if (target.classList.contains('pos-quickfire-btn')) {
         var pid = target.dataset.productId;
         var product = this.state.products.find(p => String(p.id) === String(pid));
         if (product) {
+          if (product.available === false) { this.showNotification(Nawa.I18n.t('out_of_stock') + ': ' + (Nawa.I18n.getLang() === 'ar' ? (product.name || product.nameEn) : (product.nameEn || product.name)), 'warning'); return; }
           if (product.variants && product.variants.length > 0) { this.showVariantPicker(product); }
           else { this.addToCart(product); }
         }
@@ -1741,6 +1811,7 @@ Nawa.POS = {
         const pid = productId.dataset.productId;
         const product = this.state.products.find(p => String(p.id) === String(pid));
         if (product) {
+          if (product.available === false) { this.showNotification(Nawa.I18n.t('out_of_stock') + ': ' + (Nawa.I18n.getLang() === 'ar' ? (product.name || product.nameEn) : (product.nameEn || product.name)), 'warning'); return; }
           if (product.variants && product.variants.length > 0) { this.showVariantPicker(product); }
           else { this.addToCart(product); }
         }
@@ -1991,8 +2062,12 @@ Nawa.POS = {
           var barcode = bcInput.value.trim();
           var product = this.state.products.find(function (p) { return p.barcode === barcode; });
           if (product) {
-            this.addToCart(product);
-            this.showNotification(Nawa.I18n.getLang() === 'ar' ? 'تمت الإضافة: ' + product.name : 'Added: ' + (product.nameEn || product.name), 'success');
+            if (product.available === false) {
+              this.showNotification(Nawa.I18n.t('out_of_stock') + ': ' + (Nawa.I18n.getLang() === 'ar' ? (product.name || product.nameEn) : (product.nameEn || product.name)), 'warning');
+            } else {
+              this.addToCart(product);
+              this.showNotification(Nawa.I18n.getLang() === 'ar' ? 'تمت الإضافة: ' + product.name : 'Added: ' + (product.nameEn || product.name), 'success');
+            }
           } else {
             var variantFound = null;
             var variantProduct = null;
@@ -2004,8 +2079,12 @@ Nawa.POS = {
               }
             });
             if (variantFound && variantProduct) {
-              this.addToCart(variantProduct, { name: variantFound.name, price: variantFound.price || 0, barcode: variantFound.barcode || '' });
-              this.showNotification(Nawa.I18n.getLang() === 'ar' ? 'تمت الإضافة: ' + variantProduct.name + ' (' + variantFound.name + ')' : 'Added: ' + (variantProduct.nameEn || variantProduct.name) + ' (' + variantFound.name + ')', 'success');
+              if (variantProduct.available === false) {
+                this.showNotification(Nawa.I18n.t('out_of_stock') + ': ' + (Nawa.I18n.getLang() === 'ar' ? (variantProduct.name || variantProduct.nameEn) : (variantProduct.nameEn || variantProduct.name)), 'warning');
+              } else {
+                this.addToCart(variantProduct, { name: variantFound.name, price: variantFound.price || 0, barcode: variantFound.barcode || '' });
+                this.showNotification(Nawa.I18n.getLang() === 'ar' ? 'تمت الإضافة: ' + variantProduct.name + ' (' + variantFound.name + ')' : 'Added: ' + (variantProduct.nameEn || variantProduct.name) + ' (' + variantFound.name + ')', 'success');
+              }
             } else {
               this.showNotification(Nawa.I18n.getLang() === 'ar' ? 'لم يتم العثور على المنتج' : 'Product not found', 'warning');
             }
