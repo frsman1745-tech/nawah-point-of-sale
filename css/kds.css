@@ -235,6 +235,13 @@
 .kds-empty h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: 8px; color: #94a3b8; }
 .kds-empty p { font-size: 0.875rem; }
 
+.kds-item-variant {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #C9A84C;
+  margin-inline-start: 4px;
+}
+
 @media (max-width: 768px) {
   .kds-grid {
     grid-template-columns: 1fr;

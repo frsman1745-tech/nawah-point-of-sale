@@ -1535,3 +1535,41 @@ body[dir="ltr"] .pos-cart-panel {
     font-size: 1.125rem;
   }
 }
+
+/* ── Variant Picker Modal ── */
+.pos-variant-btn {
+  transition: all 0.15s ease;
+}
+.pos-variant-btn:hover {
+  background: var(--navy, #0E1C3D) !important;
+  color: #fff !important;
+  border-color: var(--navy, #0E1C3D) !important;
+}
+.pos-variant-btn:hover span {
+  color: #fff !important;
+}
+
+/* ── Cart Variant Badge ── */
+.pos-cart-item-variant {
+  display: inline-block;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--navy, #0E1C3D);
+  background: rgba(14, 28, 61, 0.08);
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-inline-start: 6px;
+  vertical-align: middle;
+}
+
+/* ── Product Card Variant Badge ── */
+.pos-product-variant-badge {
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--navy, #0E1C3D);
+  background: rgba(14, 28, 61, 0.06);
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-top: 2px;
+  display: inline-block;
+}

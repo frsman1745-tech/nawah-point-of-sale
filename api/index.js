@@ -167,6 +167,13 @@ const employeeSchema = new mongoose.Schema({
 
 employeeSchema.index({ restaurantId: 1, username: 1 }, { unique: true });
 
+const productVariantSchema = new mongoose.Schema({
+  name: { type: String, required: true, trim: true },
+  price: { type: Number, default: 0 },
+  barcode: { type: String, trim: true },
+  active: { type: Boolean, default: true }
+}, { _id: false, versionKey: false, minimize: true, strict: true });
+
 const productSchema = new mongoose.Schema({
   restaurantId: { type: String, required: true, index: true },
   name: { type: String, required: true, trim: true },
@@ -177,6 +184,7 @@ const productSchema = new mongoose.Schema({
   notes: { type: String, trim: true },
   image: { type: String, default: '' },
   active: { type: Boolean, default: true },
+  variants: { type: [productVariantSchema], default: [] },
   createdAt: { type: Date, default: Date.now }
 }, commonOpts);
 
@@ -1395,6 +1403,9 @@ app.post('/api/products', authMiddleware, adminOrAbove, async (req, res) => {
     const { Product: P } = getModels();
     if (!req.user.restaurantId && req.user.role !== 'super_admin') return res.status(403).json({ error: 'No restaurant associated' });
     const b = req.body;
+    const variants = Array.isArray(b.variants) ? b.variants.slice(0, 50).map(function(v) {
+      return { name: sanitizeStr(v.name, 100), price: typeof v.price === 'number' ? v.price : 0, barcode: sanitizeStr(v.barcode, 100), active: typeof v.active === 'boolean' ? v.active : true };
+    }) : [];
     const item = new P({
       restaurantId: req.user.restaurantId || sanitizeStr(b.restaurantId, 50),
       name: sanitizeStr(b.name, 200),
@@ -1404,7 +1415,8 @@ app.post('/api/products', authMiddleware, adminOrAbove, async (req, res) => {
       categoryId: sanitizeStr(b.categoryId, 50),
       notes: sanitizeStr(b.notes, 500),
       image: typeof b.image === 'string' ? b.image.slice(0, 500000) : '',
-      active: typeof b.active === 'boolean' ? b.active : true
+      active: typeof b.active === 'boolean' ? b.active : true,
+      variants: variants
     });
     await item.save();
     res.json({ ...item.toObject(), id: item._id.toString() });
@@ -1429,6 +1441,11 @@ app.put('/api/products/:id', authMiddleware, adminOrAbove, async (req, res) => {
     if (b.notes !== undefined) allowed.notes = sanitizeStr(b.notes, 500);
     if (b.image !== undefined) allowed.image = typeof b.image === 'string' ? b.image.slice(0, 500000) : '';
     if (b.active !== undefined && typeof b.active === 'boolean') allowed.active = b.active;
+    if (b.variants !== undefined) {
+      allowed.variants = Array.isArray(b.variants) ? b.variants.slice(0, 50).map(function(v) {
+        return { name: sanitizeStr(v.name, 100), price: typeof v.price === 'number' ? v.price : 0, barcode: sanitizeStr(v.barcode, 100), active: typeof v.active === 'boolean' ? v.active : true };
+      }) : [];
+    }
     const updated = await P.findByIdAndUpdate(req.params.id, allowed, { new: true });
     res.json({ ...updated.toObject(), id: updated._id.toString() });
   } catch (e) { res.status(500).json({ error: 'Failed to update product' }); }

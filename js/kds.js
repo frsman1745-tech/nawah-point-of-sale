@@ -74,8 +74,9 @@ Nawa.KDS = {
 
         var itemsHtml = (order.items || []).map(function (item) {
           var name = isAr ? (item.name || item.nameEn) : (item.nameEn || item.name);
+          var variantSpan = item.variantName ? ' <span class="kds-item-variant">(' + Nawa.POS._escapeHtml(item.variantName) + ')</span>' : '';
           var noteHtml = item.notes ? '<div class="kds-item-note">↳ ' + Nawa.POS._escapeHtml(item.notes) + '</div>' : '';
-          return '<div class="kds-item"><span class="kds-item-qty">×' + (item.quantity || 1) + '</span><span class="kds-item-name">' + Nawa.POS._escapeHtml(name || t('item')) + '</span>' + noteHtml + '</div>';
+          return '<div class="kds-item"><span class="kds-item-qty">×' + (item.quantity || 1) + '</span><span class="kds-item-name">' + Nawa.POS._escapeHtml(name || t('item')) + variantSpan + '</span>' + noteHtml + '</div>';
         }).join('');
 
         var statusClass = order.status === 'held' ? ' held' : '';

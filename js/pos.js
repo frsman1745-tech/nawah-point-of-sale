@@ -167,7 +167,7 @@ Nawa.POS = {
         var serverProducts = await res.json();
         if (serverProducts.length > 0) {
           self.state.products = serverProducts.map(function (p) {
-            return { id: p.id, name: p.name, nameEn: p.nameEn, price: p.price, barcode: p.barcode, categoryId: p.categoryId, notes: p.notes, active: p.active };
+            return { id: p.id, name: p.name, nameEn: p.nameEn, price: p.price, barcode: p.barcode, categoryId: p.categoryId, notes: p.notes, active: p.active, variants: p.variants || [] };
           });
           await DB.clear(S.PRODUCTS);
           for (var i = 0; i < self.state.products.length; i++) {
@@ -394,6 +394,7 @@ Nawa.POS = {
       <div id="pos-history-modal" class="modal-overlay hidden"></div>
       <div id="pos-customer-modal" class="modal-overlay hidden"></div>
       <div id="pos-discount-modal" class="modal-overlay hidden"></div>
+      <div id="pos-variant-modal" class="modal-overlay hidden"></div>
     `;
   },
 
@@ -521,12 +522,16 @@ Nawa.POS = {
       const display = hasImage
         ? `<img src="${this._escapeHtml(emoji)}" alt="" class="pos-product-img" />`
         : `<span class="pos-product-emoji">${emoji || '📦'}</span>`;
+      const variantBadge = (product.variants && product.variants.length > 0)
+        ? '<span class="pos-product-variant-badge">' + product.variants.length + ' ' + (Nawa.I18n.getLang() === 'ar' ? 'مقاسات' : 'sizes') + '</span>'
+        : '';
 
       return `
         <div class="pos-product-card" data-product-id="${product.id}">
           <div class="pos-product-thumb">${display}</div>
           <div class="pos-product-info">
             <span class="pos-product-name">${this._escapeHtml(name)}</span>
+            ${variantBadge}
             <span class="pos-product-price">${this.formatPrice(product.price)}</span>
           </div>
         </div>`;
@@ -542,11 +547,12 @@ Nawa.POS = {
 
     const items = cart.map((item, index) => {
       const name = Nawa.I18n.getLang() === 'ar' ? (item.name || item.nameEn) : (item.nameEn || item.name);
+      const variantDisplay = item.variantName ? '<span class="pos-cart-item-variant">' + this._escapeHtml(item.variantName) + '</span>' : '';
       const noteDisplay = item.notes ? `<span class="pos-cart-item-notes">${this._escapeHtml(item.notes)}</span>` : '';
       return `
         <div class="pos-cart-item" data-cart-index="${index}">
           <div class="pos-cart-item-info">
-            <span class="pos-cart-item-name">${this._escapeHtml(name)}</span>
+            <span class="pos-cart-item-name">${this._escapeHtml(name)}${variantDisplay}</span>
             <span class="pos-cart-item-unit-price">${this.formatPrice(item.price)}</span>
             ${noteDisplay}
           </div>
@@ -768,21 +774,28 @@ Nawa.POS = {
   // ===========================
   // CART OPERATIONS
   // ===========================
-  addToCart(product) {
-    const existing = this.state.cart.find(item => item.productId === product.id);
+  addToCart(product, variant) {
+    var vName = variant ? variant.name : '';
+    var vPrice = variant ? (variant.price || 0) : 0;
+    var finalPrice = variant ? (vPrice > 0 ? vPrice : product.price || 0) : (product.price || 0);
+    var vBarcode = variant ? (variant.barcode || '') : '';
+    var cartKey = product.id + (vName ? '_' + vName : '');
+    const existing = this.state.cart.find(item => item.cartKey === cartKey);
     if (existing) {
       existing.quantity += 1;
       existing.subtotal = existing.quantity * existing.price;
     } else {
-      const name = Nawa.I18n.getLang() === 'ar' ? (product.name || product.nameEn) : (product.nameEn || product.name);
       this.state.cart.push({
+        cartKey: cartKey,
         productId: product.id,
         name: product.name || '',
         nameEn: product.nameEn || '',
-        price: product.price || 0,
+        price: finalPrice,
         quantity: 1,
-        subtotal: product.price || 0,
-        notes: ''
+        subtotal: finalPrice,
+        notes: '',
+        variantName: vName,
+        variantBarcode: vBarcode
       });
     }
 
@@ -808,6 +821,51 @@ Nawa.POS = {
       item.notes = note.trim();
       this.render();
     }
+  },
+
+  showVariantPicker(product) {
+    var self = this;
+    var isAr = Nawa.I18n.getLang() === 'ar';
+    var modal = document.getElementById('pos-variant-modal');
+    if (!modal) return;
+    var variants = (product.variants || []).filter(function(v) { return v.active !== false; });
+    if (variants.length === 0) { this.addToCart(product); return; }
+    var prodName = isAr ? (product.name || product.nameEn) : (product.nameEn || product.name);
+    var html = '<div class="modal" style="max-width:360px;">';
+    html += '<div class="modal-header">';
+    html += '<h3>' + Nawa.I18n.t('select_variant') + '</h3>';
+    html += '<button class="btn btn-ghost btn-icon" onclick="Nawa.POS.hideVariantPicker()">';
+    html += '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+    html += '</button></div>';
+    html += '<div class="modal-body">';
+    html += '<div style="font-size:0.9375rem;font-weight:600;margin-bottom:12px;color:var(--text-primary,#1A1A1A);">' + self._escapeHtml(prodName) + '</div>';
+    html += '<div style="display:flex;flex-direction:column;gap:8px;">';
+    variants.forEach(function(v) {
+      var vPrice = v.price > 0 ? v.price : product.price;
+      html += '<button class="pos-variant-btn" data-variant-name="' + self._escapeHtml(v.name) + '" data-variant-price="' + v.price + '" data-variant-barcode="' + self._escapeHtml(v.barcode || '') + '" style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border:1px solid var(--border,#E5E7EB);border-radius:8px;background:var(--card,#fff);cursor:pointer;font-size:0.9375rem;color:var(--text-primary,#1A1A1A);">';
+      html += '<span style="font-weight:600;">' + self._escapeHtml(v.name) + '</span>';
+      html += '<span style="color:var(--navy,#0E1C3D);font-weight:600;">' + self.formatPrice(vPrice) + '</span>';
+      html += '</button>';
+    });
+    html += '</div>';
+    html += '<button class="btn btn-ghost" onclick="Nawa.POS.hideVariantPicker()" style="width:100%;margin-top:12px;font-size:0.875rem;">' + Nawa.I18n.t('cancel') + '</button>';
+    html += '</div></div>';
+    modal.innerHTML = html;
+    modal.classList.remove('hidden');
+    modal.querySelectorAll('.pos-variant-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var vName = btn.dataset.variantName;
+        var vPrice = parseFloat(btn.dataset.variantPrice) || 0;
+        var vBarcode = btn.dataset.variantBarcode || '';
+        self.addToCart(product, { name: vName, price: vPrice, barcode: vBarcode });
+        self.hideVariantPicker();
+      });
+    });
+  },
+
+  hideVariantPicker() {
+    var modal = document.getElementById('pos-variant-modal');
+    if (modal) modal.classList.add('hidden');
   },
 
   updateQuantity(index, delta) {
@@ -1112,6 +1170,11 @@ Nawa.POS = {
       const heldOrder = await this._findHeldOrderForTable(table.id);
       if (heldOrder && heldOrder.items && heldOrder.items.length > 0) {
         this.state.cart = JSON.parse(JSON.stringify(heldOrder.items));
+        this.state.cart.forEach(function(item) {
+          if (!item.cartKey) {
+            item.cartKey = item.productId + (item.variantName ? '_' + item.variantName : '');
+          }
+        });
         await Nawa.DB.update(Nawa.CONFIG.STORES.ORDERS, heldOrder.id, { status: 'active' });
         this.render();
         this.showNotification(Nawa.I18n.t('recall_order'), 'info');
@@ -1162,7 +1225,11 @@ Nawa.POS = {
         const nameAr = (p.name || '').toLowerCase();
         const nameEn = (p.nameEn || '').toLowerCase();
         const barcode = (p.barcode || '').toLowerCase();
-        return nameAr.includes(q) || nameEn.includes(q) || barcode.includes(q);
+        var match = nameAr.includes(q) || nameEn.includes(q) || barcode.includes(q);
+        if (!match && p.variants && p.variants.length > 0) {
+          match = p.variants.some(function(v) { return ((v.name || '').toLowerCase().includes(q) || (v.barcode || '').toLowerCase().includes(q)); });
+        }
+        return match;
       });
     }
 
@@ -1405,10 +1472,11 @@ Nawa.POS = {
 
     const rows = (order.items || []).map(item => {
       const name = Nawa.I18n.getLang() === 'ar' ? (item.name || item.nameEn) : (item.nameEn || item.name);
+      const variantText = item.variantName ? ' <span style="font-size:0.7rem;color:#C9A84C;">(' + this._escapeHtml(item.variantName) + ')</span>' : '';
       const noteLine = item.notes ? `<div style="font-size:0.7rem;color:#999;font-style:italic;margin-top:2px;">↳ ${this._escapeHtml(item.notes)}</div>` : '';
       return `
         <tr>
-          <td>${this._escapeHtml(name)}${noteLine}</td>
+          <td>${this._escapeHtml(name)}${variantText}${noteLine}</td>
           <td class="text-center">${item.quantity}</td>
           <td class="text-center">${this.formatPrice(item.price)}</td>
           <td class="text-end">${this.formatPrice(item.subtotal)}</td>
@@ -1660,7 +1728,10 @@ Nawa.POS = {
       if (target.classList.contains('pos-quickfire-btn')) {
         var pid = target.dataset.productId;
         var product = this.state.products.find(p => String(p.id) === String(pid));
-        if (product) this.addToCart(product);
+        if (product) {
+          if (product.variants && product.variants.length > 0) { this.showVariantPicker(product); }
+          else { this.addToCart(product); }
+        }
         return;
       }
 
@@ -1669,7 +1740,10 @@ Nawa.POS = {
       if (productId) {
         const pid = productId.dataset.productId;
         const product = this.state.products.find(p => String(p.id) === String(pid));
-        if (product) this.addToCart(product);
+        if (product) {
+          if (product.variants && product.variants.length > 0) { this.showVariantPicker(product); }
+          else { this.addToCart(product); }
+        }
         return;
       }
 
@@ -1920,7 +1994,21 @@ Nawa.POS = {
             this.addToCart(product);
             this.showNotification(Nawa.I18n.getLang() === 'ar' ? 'تمت الإضافة: ' + product.name : 'Added: ' + (product.nameEn || product.name), 'success');
           } else {
-            this.showNotification(Nawa.I18n.getLang() === 'ar' ? 'لم يتم العثور على المنتج' : 'Product not found', 'warning');
+            var variantFound = null;
+            var variantProduct = null;
+            this.state.products.forEach(function (p) {
+              if (p.variants && p.variants.length > 0) {
+                p.variants.forEach(function (v) {
+                  if (v.barcode === barcode && v.active !== false) { variantFound = v; variantProduct = p; }
+                });
+              }
+            });
+            if (variantFound && variantProduct) {
+              this.addToCart(variantProduct, { name: variantFound.name, price: variantFound.price || 0, barcode: variantFound.barcode || '' });
+              this.showNotification(Nawa.I18n.getLang() === 'ar' ? 'تمت الإضافة: ' + variantProduct.name + ' (' + variantFound.name + ')' : 'Added: ' + (variantProduct.nameEn || variantProduct.name) + ' (' + variantFound.name + ')', 'success');
+            } else {
+              this.showNotification(Nawa.I18n.getLang() === 'ar' ? 'لم يتم العثور على المنتج' : 'Product not found', 'warning');
+            }
           }
           bcInput.value = '';
           e.preventDefault();
@@ -1943,6 +2031,8 @@ Nawa.POS = {
         if (hm) hm.classList.add('hidden');
         const dm = document.getElementById('pos-discount-modal');
         if (dm) dm.classList.add('hidden');
+        const vm = document.getElementById('pos-variant-modal');
+        if (vm) vm.classList.add('hidden');
         this.hideCustomerModal();
       }
     });
@@ -2617,8 +2707,9 @@ Nawa.POS = {
 
     var rows = (order.items || []).map(function (item) {
       var name = lang === 'ar' ? (item.name || item.nameEn) : (item.nameEn || item.name);
+      var variantSpan = item.variantName ? ' <span style="font-size:0.6875rem;color:#C9A84C;font-weight:600;">(' + self._escapeHtml(item.variantName) + ')</span>' : '';
       var noteHtml = item.notes ? '<div style="font-size:0.6875rem;color:#888;font-style:italic;margin-top:2px;">↳ ' + self._escapeHtml(item.notes) + '</div>' : '';
-      return '<div class="pos-history-detail-row"><span>' + self._escapeHtml(name || t('item')) + noteHtml + '</span><span>× ' + (item.quantity || 1) + '</span><span>' + self.formatPrice((item.price || 0) * (item.quantity || 1)) + '</span></div>';
+      return '<div class="pos-history-detail-row"><span>' + self._escapeHtml(name || t('item')) + variantSpan + noteHtml + '</span><span>× ' + (item.quantity || 1) + '</span><span>' + self.formatPrice((item.price || 0) * (item.quantity || 1)) + '</span></div>';
     }).join('');
 
     var modal = document.getElementById('pos-history-modal');

@@ -32,6 +32,28 @@
       if (input) input.value = '';
     },
 
+    _removeVariantRow(btn) {
+      var row = btn.closest('.ds-variant-row');
+      if (row) row.remove();
+    },
+
+    _addVariantRow() {
+      var list = document.getElementById('ds-m-variants-list');
+      if (!list) return;
+      var isAr = Nawa.I18n.getLang() === 'ar';
+      var idx = list.children.length;
+      var div = document.createElement('div');
+      div.className = 'ds-variant-row';
+      div.dataset.variantIdx = idx;
+      div.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:center;';
+      div.innerHTML = '<input type="text" class="form-input ds-m-variant-name" placeholder="' + (isAr ? 'مثال: وسط / كبير' : 'e.g. Small / Medium / Large') + '" style="flex:2;font-size:0.8125rem;">' +
+        '<input type="number" class="form-input ds-m-variant-price" placeholder="' + (isAr ? 'السعر' : 'Price') + '" min="0" step="100" style="flex:1;font-size:0.8125rem;">' +
+        '<input type="text" class="form-input ds-m-variant-barcode" placeholder="' + (isAr ? 'باركود' : 'Barcode') + '" style="flex:1;font-size:0.8125rem;">' +
+        '<button type="button" class="btn btn-ghost btn-sm" onclick="Admin._removeVariantRow(this)" style="color:#ef4444;padding:4px;" title="' + (isAr ? 'حذف' : 'Delete') + '">' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>';
+      list.appendChild(div);
+    },
+
     state: {
       orders: [],
       tables: [],
@@ -1402,9 +1424,10 @@
           if (order.items && order.items.length > 0) {
             order.items.forEach(function (item) {
               var itemName = item.name || item.nameEn || t('item');
+              var variantSpan = item.variantName ? ' <span style="font-size:0.7rem;color:#C9A84C;font-weight:600;">(' + self._escapeHtml(item.variantName) + ')</span>' : '';
               var noteHtml = item.notes ? '<div style="font-size:0.7rem;color:var(--text-secondary,#6B7280);font-style:italic;margin-top:2px;">↳ ' + self._escapeHtml(item.notes) + '</div>' : '';
               html += '<div class="admin-oh-detail-item">';
-              html += '<span class="admin-oh-detail-item-name">' + self._escapeHtml(itemName) + noteHtml + '</span>';
+              html += '<span class="admin-oh-detail-item-name">' + self._escapeHtml(itemName) + variantSpan + noteHtml + '</span>';
               html += '<span class="admin-oh-detail-item-qty">× ' + (item.quantity || item.q || 1) + '</span>';
               html += '<span class="admin-oh-detail-item-price">' + self.formatCurrency((item.price || item.pr || 0) * (item.quantity || item.q || 1)) + '</span>';
               html += '</div>';
@@ -1561,6 +1584,7 @@
               html += '<span style="font-weight:600;color:var(--navy,#0E1C3D);">' + self.formatCurrency(p.price || 0) + '</span>';
               if (catName) html += '<span>' + Admin._escapeHtml(catName) + '</span>';
               if (p.barcode) html += '<span>' + Admin._escapeHtml(p.barcode) + '</span>';
+              if (p.variants && p.variants.length > 0) html += '<span style="color:#C9A84C;font-weight:600;">' + p.variants.length + ' ' + (isAr ? 'مقاسات' : 'variants') + '</span>';
               html += '</div></div>';
             });
             html += '</div>';
@@ -1842,6 +1866,22 @@
         html += '<button type="button" class="btn btn-ghost btn-sm" onclick="Admin._clearProductImage()" style="color:#ef4444;">' + (isAr ? 'حذف الصورة' : 'Remove') + '</button>';
         html += '<input type="hidden" id="ds-m-image" value="' + (item ? (item.image || '') : '') + '">';
         html += '</div></div></div>';
+        html += '<div class="form-group"><label class="form-label">' + (isAr ? 'المقاسات / الأحجام' : 'Variants / Sizes') + '</label>';
+        html += '<div style="font-size:0.75rem;color:var(--text-secondary,#6B7280);margin-bottom:8px;">' + (isAr ? 'أضف مقاسات أو أحجام مختلفة لكل مقاس سعر خاص به' : 'Add different sizes with their own prices') + '</div>';
+        html += '<div id="ds-m-variants-list">';
+        var variants = (item && item.variants) ? item.variants : [];
+        variants.forEach(function(v, vi) {
+          html += '<div class="ds-variant-row" data-variant-idx="' + vi + '" style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">';
+          html += '<input type="text" class="form-input ds-m-variant-name" placeholder="' + (isAr ? 'مثال: وسط / كبير' : 'e.g. Small / Medium / Large') + '" value="' + Admin._escapeHtml(v.name || '') + '" style="flex:2;font-size:0.8125rem;">';
+          html += '<input type="number" class="form-input ds-m-variant-price" placeholder="' + t('price') + '" value="' + (v.price || '') + '" min="0" step="100" style="flex:1;font-size:0.8125rem;">';
+          html += '<input type="text" class="form-input ds-m-variant-barcode" placeholder="' + (isAr ? 'باركود' : 'Barcode') + '" value="' + Admin._escapeHtml(v.barcode || '') + '" style="flex:1;font-size:0.8125rem;">';
+          html += '<button type="button" class="btn btn-ghost btn-sm" onclick="Admin._removeVariantRow(this)" style="color:#ef4444;padding:4px;" title="' + (isAr ? 'حذف' : 'Delete') + '">';
+          html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>';
+          html += '</div>';
+        });
+        html += '</div>';
+        html += '<button type="button" class="btn btn-ghost btn-sm" onclick="Admin._addVariantRow()" style="display:flex;align-items:center;gap:4px;font-size:0.8125rem;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> ' + (isAr ? 'إضافة مقاس' : 'Add Variant') + '</button>';
+        html += '</div>';
       } else if (type === 'category') {
         title.textContent = item ? (isAr ? 'تعديل فئة' : 'Edit Category') : (isAr ? 'إضافة فئة' : 'Add Category');
         html += '<div class="form-group"><label class="form-label">' + (isAr ? 'اسم الفئة' : 'Category Name') + ' *</label>';
@@ -1938,6 +1978,14 @@
           var categoryId = (document.getElementById('ds-m-categoryId') || {}).value || '';
           var notes = (document.getElementById('ds-m-notes') || {}).value || '';
           var image = (document.getElementById('ds-m-image') || {}).value || '';
+          var variantRows = document.querySelectorAll('#ds-m-variants-list .ds-variant-row');
+          var variants = [];
+          variantRows.forEach(function(row) {
+            var vName = (row.querySelector('.ds-m-variant-name') || {}).value || '';
+            var vPrice = parseFloat((row.querySelector('.ds-m-variant-price') || {}).value) || 0;
+            var vBarcode = (row.querySelector('.ds-m-variant-barcode') || {}).value || '';
+            if (vName.trim()) variants.push({ name: vName.trim(), price: vPrice, barcode: vBarcode.trim(), active: true });
+          });
           if (!name.trim()) { if (errEl) { errEl.textContent = isAr ? 'اسم المنتج مطلوب' : 'Product name is required'; errEl.classList.remove('hidden'); } return; }
           if (m.editId) {
             var existing = this.state.products.find(function (p) { return p.id === m.editId; });
@@ -1949,14 +1997,15 @@
               existing.categoryId = categoryId;
               existing.notes = notes.trim();
               existing.image = image;
+              existing.variants = variants;
               await DB.update(S.PRODUCTS, existing.id, existing);
-              Nawa.Auth.apiFetch('/products/' + existing.id, { method: 'PUT', body: { name: existing.name, nameEn: existing.nameEn, price: existing.price, barcode: existing.barcode, categoryId: existing.categoryId, notes: existing.notes, image: existing.image } }).catch(function(){});
+              Nawa.Auth.apiFetch('/products/' + existing.id, { method: 'PUT', body: { name: existing.name, nameEn: existing.nameEn, price: existing.price, barcode: existing.barcode, categoryId: existing.categoryId, notes: existing.notes, image: existing.image, variants: existing.variants } }).catch(function(){});
             }
           } else {
-            var newItem = { id: Date.now().toString(), name: name.trim(), nameEn: nameEn.trim(), price: price, barcode: barcode.trim(), categoryId: categoryId, notes: notes.trim(), image: image, active: true, createdAt: new Date().toISOString() };
+            var newItem = { id: Date.now().toString(), name: name.trim(), nameEn: nameEn.trim(), price: price, barcode: barcode.trim(), categoryId: categoryId, notes: notes.trim(), image: image, active: true, variants: variants, createdAt: new Date().toISOString() };
             await DB.add(S.PRODUCTS, newItem);
             this.state.products.push(newItem);
-            Nawa.Auth.apiFetch('/products', { method: 'POST', body: { name: newItem.name, nameEn: newItem.nameEn, price: newItem.price, barcode: newItem.barcode, categoryId: newItem.categoryId, notes: newItem.notes, image: newItem.image } }).catch(function(){});
+            Nawa.Auth.apiFetch('/products', { method: 'POST', body: { name: newItem.name, nameEn: newItem.nameEn, price: newItem.price, barcode: newItem.barcode, categoryId: newItem.categoryId, notes: newItem.notes, image: newItem.image, variants: newItem.variants } }).catch(function(){});
           }
         } else if (m.type === 'category') {
           var name = (document.getElementById('ds-m-name') || {}).value || '';
@@ -2286,10 +2335,11 @@
       if (order.items && order.items.length > 0) {
         html += '<div class="admin-order-modal-items">';
         order.items.forEach(function (item) {
+          var variantLabel = item.variantName ? ' <span style="font-size:0.75rem;color:#C9A84C;font-weight:600;">(' + Admin._escapeHtml(item.variantName) + ')</span>' : '';
           html += '<div class="admin-order-modal-item">';
-          html += '<span class="admin-order-modal-item-name">' + self._escapeHtml(item.name || t('item_name')) + '</span>';
-          html += '<span class="admin-order-modal-item-qty">× ' + (item.qty || 1) + '</span>';
-          html += '<span class="admin-order-modal-item-price">' + self.formatCurrency((item.price || 0) * (item.qty || 1)) + '</span>';
+          html += '<span class="admin-order-modal-item-name">' + self._escapeHtml(item.name || t('item_name')) + variantLabel + '</span>';
+          html += '<span class="admin-order-modal-item-qty">× ' + (item.quantity || item.qty || 1) + '</span>';
+          html += '<span class="admin-order-modal-item-price">' + self.formatCurrency((item.price || 0) * (item.quantity || item.qty || 1)) + '</span>';
           html += '</div>';
         });
         html += '</div>';

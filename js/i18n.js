@@ -516,7 +516,15 @@
     status_paid: { ar: 'مدفوع', en: 'Paid' },
     summary_stats: { ar: 'ملخص الفترة', en: 'Period Summary' },
     total_revenue: { ar: 'إجمالي الإيرادات', en: 'Total Revenue' },
-    avg_order_value: { ar: 'متوسط قيمة الطلب', en: 'Avg Order Value' }
+    avg_order_value: { ar: 'متوسط قيمة الطلب', en: 'Avg Order Value' },
+
+    // ── Variants ──
+    select_variant: { ar: 'اختر المقاس', en: 'Select Size' },
+    variants: { ar: 'المقاسات', en: 'Variants' },
+    add_variant: { ar: 'إضافة مقاس', en: 'Add Variant' },
+    variant_name: { ar: 'اسم المقاس', en: 'Variant Name' },
+    variant_price: { ar: 'سعر المقاس', en: 'Variant Price' },
+    no_variants: { ar: 'بدون مقاسات', en: 'No variants' }
   };
 
   function setDirection(lang) {
