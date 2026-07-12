@@ -299,7 +299,7 @@
 
     // ── Admin: Settings ──
     tax_rate: { ar: 'نسبة الضريبة (%)', en: 'Tax Rate (%)' },
-    tax_rate_desc: { ar: 'القيمة الافتراضية 15%', en: 'Default 15%' },
+    tax_rate_desc: { ar: 'القيمة الافتراضية 0%', en: 'Default 0%' },
     receipt_header: { ar: 'نص رأس الإيصال', en: 'Receipt Header' },
     receipt_header_desc: { ar: 'يظهر في أعلى الإيصال المطبوع', en: 'Printed at top of receipt' },
     sync_interval: { ar: 'فترة المزامنة (ثانية)', en: 'Sync Interval (seconds)' },

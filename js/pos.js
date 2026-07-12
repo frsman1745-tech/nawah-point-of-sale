@@ -23,7 +23,7 @@ Nawa.POS = {
     discountPresets: []
   },
 
-  TAX_RATE: 0.15,
+  TAX_RATE: 0,
   _syncTimer: null,
   _searchDebounce: null,
   _listenersAttached: false,

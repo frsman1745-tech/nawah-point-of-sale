@@ -1932,7 +1932,7 @@
 
       html += '<div class="admin-settings-row">';
       html += '<div class="admin-settings-label"><span class="admin-settings-label-text">' + t('tax_rate') + '</span><span class="admin-settings-label-desc">' + t('tax_rate_desc') + '</span></div>';
-      html += '<div class="form-group" style="max-width:120px"><input type="number" class="form-input" id="setting-tax" value="' + Admin._escapeHtml(String(st.taxRate || '15')) + '" min="0" max="100"></div>';
+      html += '<div class="form-group" style="max-width:120px"><input type="number" class="form-input" id="setting-tax" value="' + Admin._escapeHtml(String(st.taxRate || '0')) + '" min="0" max="100"></div>';
       html += '</div>';
 
       html += '<div class="admin-settings-row">';
@@ -2326,7 +2326,7 @@
       var minOrderEl = document.getElementById('setting-min-order');
 
       var settingsToSave = [
-        { key: 'taxRate', value: (taxEl ? taxEl.value : '15') || '15' },
+        { key: 'taxRate', value: (taxEl ? taxEl.value : '0') || '0' },
         { key: 'receiptHeader', value: (receiptEl ? receiptEl.value : '') || CFG.COMPANY_NAME },
         { key: 'syncInterval', value: (syncEl ? syncEl.value : '300') || '300' },
         { key: 'soundEnabled', value: soundEl ? soundEl.checked : true },
