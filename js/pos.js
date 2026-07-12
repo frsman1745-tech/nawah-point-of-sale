@@ -15,6 +15,8 @@ Nawa.POS = {
     attendanceRecord: null,
     orderNote: '',
     orders: [],
+    parallelOrders: [],
+    activeOrderIdx: -1,
     splitMode: null,
     splitParts: [],
     splitPaid: 0,
@@ -365,6 +367,7 @@ Nawa.POS = {
     root.innerHTML = `
       <div class="pos-layout">
         ${this.renderHeader()}
+        ${this._renderOrderTabs()}
         <div class="pos-body">
           <div class="pos-products-panel">
             ${this.renderCategories()}
@@ -832,6 +835,130 @@ Nawa.POS = {
     this.showNotification(Nawa.I18n.t('cart_cleared'), 'info');
   },
 
+  _newParallelOrder() {
+    var self = this;
+    var isAr = Nawa.I18n.getLang() === 'ar';
+    if (this.state.cart.length > 0) {
+      this.state.parallelOrders.push({
+        id: Date.now().toString(),
+        cart: JSON.parse(JSON.stringify(this.state.cart)),
+        tableId: this.state.currentTable,
+        floorId: this.state.currentFloor,
+        discount: this.state.discount ? Object.assign({}, this.state.discount) : null,
+        customer: this.state.currentCustomer ? Object.assign({}, this.state.currentCustomer) : null,
+        orderNote: this.state.orderNote || '',
+        createdAt: new Date().toISOString()
+      });
+    }
+    this.state.cart = [];
+    this.state.currentTable = null;
+    this.state.currentFloor = null;
+    this.state.discount = null;
+    this.state.currentCustomer = null;
+    this.state.orderNote = '';
+    this.state.activeOrderIdx = -1;
+    this.render();
+  },
+
+  _switchParallelOrder(idx) {
+    var self = this;
+    var po = this.state.parallelOrders[idx];
+    if (!po) return;
+    if (this.state.cart.length > 0 && this.state.activeOrderIdx === -1) {
+      this.state.parallelOrders.push({
+        id: Date.now().toString(),
+        cart: JSON.parse(JSON.stringify(this.state.cart)),
+        tableId: this.state.currentTable,
+        floorId: this.state.currentFloor,
+        discount: this.state.discount ? Object.assign({}, this.state.discount) : null,
+        customer: this.state.currentCustomer ? Object.assign({}, this.state.currentCustomer) : null,
+        orderNote: this.state.orderNote || '',
+        createdAt: new Date().toISOString()
+      });
+      if (idx >= this.state.parallelOrders.length - 1) {
+        idx = this.state.parallelOrders.length - 2;
+      }
+    } else if (this.state.cart.length > 0 && this.state.activeOrderIdx >= 0) {
+      var cur = this.state.parallelOrders[this.state.activeOrderIdx];
+      if (cur) {
+        cur.cart = JSON.parse(JSON.stringify(this.state.cart));
+        cur.tableId = this.state.currentTable;
+        cur.floorId = this.state.currentFloor;
+        cur.discount = this.state.discount ? Object.assign({}, this.state.discount) : null;
+        cur.customer = this.state.currentCustomer ? Object.assign({}, this.state.currentCustomer) : null;
+        cur.orderNote = this.state.orderNote || '';
+      }
+    }
+    this.state.cart = JSON.parse(JSON.stringify(po.cart));
+    this.state.currentTable = po.tableId;
+    this.state.currentFloor = po.floorId;
+    this.state.discount = po.discount ? Object.assign({}, po.discount) : null;
+    this.state.currentCustomer = po.customer ? Object.assign({}, po.customer) : null;
+    this.state.orderNote = po.orderNote || '';
+    this.state.activeOrderIdx = idx;
+    this.render();
+  },
+
+  _closeParallelOrder(idx) {
+    var isAr = Nawa.I18n.getLang() === 'ar';
+    if (!confirm(isAr ? 'هل تريد إغلاق هذا الطلب بدون دفع؟' : 'Close this order without paying?')) return;
+    this.state.parallelOrders.splice(idx, 1);
+    if (this.state.activeOrderIdx === idx) {
+      this.state.cart = [];
+      this.state.currentTable = null;
+      this.state.currentFloor = null;
+      this.state.discount = null;
+      this.state.currentCustomer = null;
+      this.state.orderNote = '';
+      this.state.activeOrderIdx = -1;
+    } else if (this.state.activeOrderIdx > idx) {
+      this.state.activeOrderIdx--;
+    }
+    this.render();
+  },
+
+  _afterPayment() {
+    if (this.state.activeOrderIdx >= 0) {
+      this.state.parallelOrders.splice(this.state.activeOrderIdx, 1);
+      if (this.state.parallelOrders.length > 0) {
+        var idx = Math.min(this.state.activeOrderIdx, this.state.parallelOrders.length - 1);
+        this._switchParallelOrder(idx);
+      } else {
+        this.state.activeOrderIdx = -1;
+      }
+    }
+  },
+
+  _renderOrderTabs() {
+    var self = this;
+    var isAr = Nawa.I18n.getLang() === 'ar';
+    var tabs = '';
+    this.state.parallelOrders.forEach(function (po, idx) {
+      var label = (idx + 1);
+      var tbl = null;
+      if (po.tableId) {
+        for (var i = 0; i < self.state.tables.length; i++) {
+          if (self.state.tables[i].id === po.tableId) { tbl = self.state.tables[i]; break; }
+        }
+      }
+      if (tbl) label = tbl.name || '#' + (tbl.number || (idx + 1));
+      var count = po.cart.reduce(function (s, item) { return s + (item.quantity || 1); }, 0);
+      var active = self.state.activeOrderIdx === idx ? ' order-tab-active' : '';
+      tabs += '<div class="order-tab' + active + '" data-po-idx="' + idx + '" style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:0.8125rem;font-weight:600;background:' + (active ? 'var(--primary,#C9A84C);color:#fff;' : 'var(--bg-secondary,#f1f5f9);color:var(--text-primary,#1A1A1A);') + 'border:1px solid var(--border,#E5E7EB);white-space:nowrap;">';
+      tabs += '<span>' + self._escapeHtml(String(label)) + '</span>';
+      tabs += '<span style="background:' + (active ? 'rgba(255,255,255,0.3)' : 'var(--border,#E5E7EB)') + ';border-radius:10px;padding:1px 6px;font-size:0.7rem;">' + count + '</span>';
+      tabs += '<button class="order-tab-close" data-po-close="' + idx + '" style="background:none;border:none;cursor:pointer;color:' + (active ? '#fff' : 'var(--text-secondary,#8A8F9B)') + ';padding:0;margin:0;font-size:1rem;line-height:1;">&times;</button>';
+      tabs += '</div>';
+    });
+    if (tabs) {
+      return '<div class="order-tabs" style="display:flex;gap:6px;padding:0 12px 8px;overflow-x:auto;flex-shrink:0;">' +
+        tabs +
+        '<div class="order-tab order-tab-new" id="pos-new-order-tab" style="display:flex;align-items:center;justify-content:center;padding:6px 12px;border-radius:8px;cursor:pointer;font-size:0.8125rem;font-weight:600;background:var(--bg-secondary,#f1f5f9);border:1px dashed var(--primary,#C9A84C);color:var(--primary,#C9A84C);white-space:nowrap;" title="' + (isAr ? 'طلب جديد' : 'New Order') + '">+</div>' +
+        '</div>';
+    }
+    return '';
+  },
+
   applyDiscount(preset) {
     if (!preset) return;
     this.state.discount = { name: preset.name, type: preset.type, value: preset.value };
@@ -1168,6 +1295,7 @@ Nawa.POS = {
           this.state.currentTable = null;
           this.state.currentCustomer = null;
           this.state.discount = null;
+          this._afterPayment();
           this.render();
           this.showNotification(Nawa.I18n.t('success_payment'), 'success');
         } catch (e) {
@@ -1419,7 +1547,27 @@ Nawa.POS = {
     if (!app) return;
 
     app.addEventListener('click', (e) => {
-      const target = e.target.closest('[data-action], [data-product-id], [data-category-id], [data-floor-id], [data-cart-index]');
+      const target = e.target.closest('[data-action], [data-product-id], [data-category-id], [data-floor-id], [data-cart-index], [data-po-idx], [data-po-close], [data-cart-item-idx]');
+
+      // Order tab switch
+      var poTab = e.target.closest('[data-po-idx]');
+      if (poTab && !e.target.closest('[data-po-close]')) {
+        var idx = parseInt(poTab.dataset.poIdx, 10);
+        this._switchParallelOrder(idx);
+        return;
+      }
+      // Order tab close
+      var poClose = e.target.closest('[data-po-close]');
+      if (poClose) {
+        var cidx = parseInt(poClose.dataset.poClose, 10);
+        this._closeParallelOrder(cidx);
+        return;
+      }
+      // New order tab
+      if (e.target.id === 'pos-new-order-tab' || e.target.closest('#pos-new-order-tab')) {
+        this._newParallelOrder();
+        return;
+      }
       if (!target) return;
 
       // Quick-fire button
