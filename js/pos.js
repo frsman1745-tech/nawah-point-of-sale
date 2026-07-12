@@ -580,13 +580,15 @@ Nawa.POS = {
     const floorId = this.state.currentFloor;
     const tables = this.state.tables.filter(t => t.floorId === floorId);
     const currentTableId = this.state.currentTable;
+    const orders = this.state.orders || [];
+    const isAr = Nawa.I18n.getLang() === 'ar';
 
     const isTakeaway = currentTableId === null;
 
     const floorTabsHtml = floors.length > 0 ? `
       <div class="pos-modal-floor-tabs">
         ${floors.map(floor => {
-          const label = Nawa.I18n.getLang() === 'ar' ? (floor.name || floor.nameEn) : (floor.nameEn || floor.name);
+          const label = isAr ? (floor.name || floor.nameEn) : (floor.nameEn || floor.name);
           const active = floorId === floor.id ? 'active' : '';
           return `<button class="pos-modal-floor-tab ${active}" data-floor-id="${floor.id}" data-action="switch-modal-floor">${this._escapeHtml(label)}</button>`;
         }).join('')}
@@ -595,7 +597,7 @@ Nawa.POS = {
     const takeawaySelected = isTakeaway ? ' selected' : '';
     const takeawayHtml = `
       <div class="pos-table-shape pos-table-takeaway${takeawaySelected}" data-action="select-takeaway">
-        <svg class="pos-takeaway-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg class="pos-takeaway-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M17 8h1a4 4 0 1 1 0 8h-1"/>
           <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/>
           <line x1="6" y1="2" x2="6" y2="4"/>
@@ -606,54 +608,51 @@ Nawa.POS = {
       </div>`;
 
     let tableShapesHtml = '';
+    const renderTable = (table) => {
+      const isSelected = currentTableId === table.id;
+      const isOccupied = table.status === 'occupied';
+      const isReserved = table.status === 'reserved';
+      const label = table.name || table.number || table.id;
+      const shape = table.shape || 'square';
+      const seats = table.seats || 4;
+      let shapeClass = 'square';
+      if (shape === 'round') shapeClass = 'round';
+      else if (shape === 'rectangle') shapeClass = 'rect';
+      else if (shape === 'pill') shapeClass = 'pill';
+
+      let statusClass = 'free';
+      if (isOccupied) statusClass = 'occupied';
+      else if (isReserved) statusClass = 'reserved';
+      if (isSelected) statusClass += ' selected';
+
+      let orderInfo = '';
+      if (isOccupied) {
+        const activeOrder = orders.find(o => o.tableId === table.id && (o.status === 'active' || o.status === 'held'));
+        if (activeOrder) {
+          const time = new Date(activeOrder.createdAt).toLocaleTimeString(isAr ? 'ar-SA' : 'en-US', { hour: '2-digit', minute: '2-digit' });
+          const empName = activeOrder.employeeName || '';
+          orderInfo = `<span class="pos-table-order-info">${time}${empName ? ' · ' + empName : ''}</span>`;
+        }
+      }
+
+      const seatCount = isOccupied ? seats : '0/' + seats;
+
+      return `
+        <div class="pos-table-shape ${shapeClass} ${statusClass}" data-table-id="${table.id}" data-action="select-table">
+          <span class="pos-table-shape-number">${this._escapeHtml(String(label))}</span>
+          <span class="pos-table-shape-seats">${seatCount}</span>
+          ${orderInfo}
+        </div>`;
+    };
+
     if (tables.length > 0) {
-      tableShapesHtml = tables.map(table => {
-        const isSelected = currentTableId === table.id;
-        const isOccupied = table.status === 'occupied';
-        const isReserved = table.status === 'reserved';
-        const label = table.name || table.number || table.id;
-        const shape = table.shape || 'square';
-        let shapeClass = 'square';
-        if (shape === 'round') shapeClass = 'round';
-        else if (shape === 'rectangle') shapeClass = 'rect';
-
-        let statusClass = 'free';
-        if (isOccupied) statusClass = 'occupied';
-        else if (isReserved) statusClass = 'reserved';
-        if (isSelected) statusClass += ' selected';
-
-        return `
-          <div class="pos-table-shape ${shapeClass} ${statusClass}" data-table-id="${table.id}" data-action="select-table">
-            <span class="pos-table-shape-number">${this._escapeHtml(String(label))}</span>
-            <span class="pos-table-shape-seats">${table.seats || ''}</span>
-          </div>`;
-      }).join('');
+      tableShapesHtml = tables.map(renderTable).join('');
     } else if (floors.length > 0) {
       tableShapesHtml = `<div class="pos-table-empty">${Nawa.I18n.t('no_data')}</div>`;
     } else {
       const allTables = this.state.tables;
       if (allTables.length > 0) {
-        tableShapesHtml = allTables.map(table => {
-          const isSelected = currentTableId === table.id;
-          const isOccupied = table.status === 'occupied';
-          const isReserved = table.status === 'reserved';
-          const label = table.name || table.number || table.id;
-          const shape = table.shape || 'square';
-          let shapeClass = 'square';
-          if (shape === 'round') shapeClass = 'round';
-          else if (shape === 'rectangle') shapeClass = 'rect';
-
-          let statusClass = 'free';
-          if (isOccupied) statusClass = 'occupied';
-          else if (isReserved) statusClass = 'reserved';
-          if (isSelected) statusClass += ' selected';
-
-          return `
-            <div class="pos-table-shape ${shapeClass} ${statusClass}" data-table-id="${table.id}" data-action="select-table">
-              <span class="pos-table-shape-number">${this._escapeHtml(String(label))}</span>
-              <span class="pos-table-shape-seats">${table.seats || ''}</span>
-            </div>`;
-        }).join('');
+        tableShapesHtml = allTables.map(renderTable).join('');
       } else {
         tableShapesHtml = `<div class="pos-table-empty">${Nawa.I18n.t('no_data')}</div>`;
       }
@@ -668,7 +667,7 @@ Nawa.POS = {
           </button>
         </div>
         ${floorTabsHtml}
-        <div class="modal-body">
+        <div class="modal-body" style="padding:0;">
           <div class="pos-table-plan">
             ${takeawayHtml}
             ${tableShapesHtml}

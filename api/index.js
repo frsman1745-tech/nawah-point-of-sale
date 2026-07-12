@@ -192,7 +192,7 @@ const tableSchema = new mongoose.Schema({
   name: { type: String, trim: true },
   seats: { type: Number, default: 4 },
   floorId: { type: String, trim: true },
-  shape: { type: String, enum: ['round', 'square', 'rectangle'], default: 'square' },
+  shape: { type: String, enum: ['round', 'square', 'rectangle', 'pill'], default: 'square' },
   status: { type: String, enum: ['free', 'occupied', 'reserved'], default: 'free' },
   createdAt: { type: Date, default: Date.now }
 }, commonOpts);

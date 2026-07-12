@@ -1445,10 +1445,10 @@
               html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;">';
               floorTables.forEach(function (tbl) {
                 var sc = tbl.status === 'occupied' ? '#ef4444' : tbl.status === 'reserved' ? '#f59e0b' : '#22c55e';
-                var br = (tbl.shape === 'round') ? '50%' : '10px';
+                var br = (tbl.shape === 'round') ? '50%' : (tbl.shape === 'pill') ? '999px' : '10px';
                 html += '<div style="background:var(--card,#fff);border:2px solid ' + sc + ';border-radius:' + br + ';padding:12px;text-align:center;position:relative;">';
                 html += '<div style="font-weight:700;font-size:1.1rem;">' + Admin._escapeHtml(tbl.name || '#' + (tbl.number || '')) + '</div>';
-                html += '<div style="font-size:0.625rem;color:var(--text-secondary,#6B7280);margin-top:2px;">' + (isAr ? (tbl.shape === 'round' ? 'دائري' : tbl.shape === 'rectangle' ? 'مستطيل' : 'مربع') : (tbl.shape || 'square')) + ' · ' + (tbl.seats || 4) + ' ' + (isAr ? 'أشخاص' : 'seats') + '</div>';
+                html += '<div style="font-size:0.625rem;color:var(--text-secondary,#6B7280);margin-top:2px;">' + (isAr ? (tbl.shape === 'round' ? 'دائري' : tbl.shape === 'rectangle' ? 'مستطيل' : tbl.shape === 'pill' ? 'بيضوي' : 'مربع') : (tbl.shape || 'square')) + ' · ' + (tbl.seats || 4) + ' ' + (isAr ? 'أشخاص' : 'seats') + '</div>';
                 html += '<div style="font-size:0.75rem;color:' + sc + ';margin-top:4px;">' + (isAr ? (tbl.status === 'occupied' ? 'مشغولة' : tbl.status === 'reserved' ? 'محجوزة' : 'فارغة') : (tbl.status || 'free')) + '</div>';
                 html += '<div style="position:absolute;top:4px;left:4px;display:flex;gap:2px;">';
                 html += '<button class="btn btn-ghost btn-sm ds-edit-item" data-ds-type="table" data-id="' + tbl.id + '" style="padding:2px 4px;font-size:0.625rem;">✏️</button>';
@@ -1461,10 +1461,10 @@
             html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;">';
             tables.forEach(function (tbl) {
               var sc = tbl.status === 'occupied' ? '#ef4444' : tbl.status === 'reserved' ? '#f59e0b' : '#22c55e';
-              var br = (tbl.shape === 'round') ? '50%' : '10px';
+              var br = (tbl.shape === 'round') ? '50%' : (tbl.shape === 'pill') ? '999px' : '10px';
               html += '<div style="background:var(--card,#fff);border:2px solid ' + sc + ';border-radius:' + br + ';padding:12px;text-align:center;position:relative;">';
               html += '<div style="font-weight:700;font-size:1.1rem;">' + Admin._escapeHtml(tbl.name || '#' + (tbl.number || '')) + '</div>';
-              html += '<div style="font-size:0.625rem;color:var(--text-secondary,#6B7280);margin-top:2px;">' + (isAr ? (tbl.shape === 'round' ? 'دائري' : tbl.shape === 'rectangle' ? 'مستطيل' : 'مربع') : (tbl.shape || 'square')) + ' · ' + (tbl.seats || 4) + ' ' + (isAr ? 'أشخاص' : 'seats') + '</div>';
+              html += '<div style="font-size:0.625rem;color:var(--text-secondary,#6B7280);margin-top:2px;">' + (isAr ? (tbl.shape === 'round' ? 'دائري' : tbl.shape === 'rectangle' ? 'مستطيل' : tbl.shape === 'pill' ? 'بيضوي' : 'مربع') : (tbl.shape || 'square')) + ' · ' + (tbl.seats || 4) + ' ' + (isAr ? 'أشخاص' : 'seats') + '</div>';
               html += '<div style="font-size:0.75rem;color:' + sc + ';margin-top:4px;">' + (isAr ? (tbl.status === 'occupied' ? 'مشغولة' : tbl.status === 'reserved' ? 'محجوزة' : 'فارغة') : (tbl.status || 'free')) + '</div>';
               html += '<div style="position:absolute;top:4px;left:4px;display:flex;gap:2px;">';
               html += '<button class="btn btn-ghost btn-sm ds-edit-item" data-ds-type="table" data-id="' + tbl.id + '" style="padding:2px 4px;font-size:0.625rem;">✏️</button>';
@@ -1683,6 +1683,7 @@
         html += '<option value="round"' + (item && item.shape === 'round' ? ' selected' : '') + '>' + (isAr ? 'دائري' : 'Round') + '</option>';
         html += '<option value="square"' + (!item || item.shape === 'square' || !item.shape ? ' selected' : '') + '>' + (isAr ? 'مربع' : 'Square') + '</option>';
         html += '<option value="rectangle"' + (item && item.shape === 'rectangle' ? ' selected' : '') + '>' + (isAr ? 'مستطيل' : 'Rectangle') + '</option>';
+        html += '<option value="pill"' + (item && item.shape === 'pill' ? ' selected' : '') + '>' + (isAr ? 'بيضوي' : 'Pill/Oval') + '</option>';
         html += '</select></div>';
         html += '<div class="form-group"><label class="form-label">' + (isAr ? 'الأرضية' : 'Floor') + '</label>';
         html += '<select class="form-input" id="ds-m-floorId"><option value="">' + (isAr ? '-- اختر أرضية (إلزامي) --' : '-- Select Floor (Required) --') + '</option>';
